@@ -1,6 +1,7 @@
 const { ipcMain } = require("electron");
 const NetworkUtils = require("../mainUtils/NetworkUtils.js");
 const DB = require("../database.js");
+const DatabaseService = require("../database.js");
 
 class DeviceHandlers {
   constructor() {
@@ -98,13 +99,28 @@ class DeviceHandlers {
     }
   }
 
+  // async getDeviceByMacHandler(event, macAddress) {
+  //   try {
+  //     if (!this.dbService) {
+  //       throw new Error("Database service not initialized");
+  //     }
+
+  //     const device = await this.dbService.getDeviceByMacAddress(macAddress);
+  //     return { success: true, device };
+  //   } catch (error) {
+  //     console.error("Failed to get device by MAC:", error);
+  //     return { success: false, error: error.message };
+  //   }
+  // }
+
+
   async getDeviceByMacHandler(event, macAddress) {
     try {
-      if (!this.dbService) {
-        throw new Error("Database service not initialized");
-      }
+    
+      const databaseService = new DatabaseService(); // now it's an instance
 
-      const device = await this.dbService.getDeviceByMacAddress(macAddress);
+      const device = await databaseService.getDeviceByMacAddress(macAddress);
+      console.log("deviceData from soap:",device);
       return { success: true, device };
     } catch (error) {
       console.error("Failed to get device by MAC:", error);
@@ -125,13 +141,23 @@ class DeviceHandlers {
       return { success: false, error: error.message };
     }
   }
+  // async getPlantCodeHandler(event) {
+  //   try {
+  //     if (!this.dbService) {
+  //       throw new Error("Database service not initialized");
+  //     }
+
+  //     const plantCodes = await this.dbService.getPlantCodes();
+  //     return { success: true, data: plantCodes };
+  //   } catch (error) {
+  //     console.error("Failed to get plantCodes:", error);
+  //     return { success: false, error: error.message };
+  //   }
+  // }
   async getPlantCodeHandler(event) {
     try {
-      if (!this.dbService) {
-        throw new Error("Database service not initialized");
-      }
-
-      const plantCodes = await this.dbService.getPlantCodes();
+      const databaseService = new DatabaseService(); // now it's an instance
+      const plantCodes = await databaseService.getPlantCodes();
       return { success: true, data: plantCodes };
     } catch (error) {
       console.error("Failed to get plantCodes:", error);

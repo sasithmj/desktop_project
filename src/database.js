@@ -1,4 +1,5 @@
 const sql = require("mssql");
+const SoapService = require("./SoapService");
 
 class DatabaseService {
   constructor(config) {
@@ -39,6 +40,7 @@ class DatabaseService {
 
   async connect() {
     console.log("Connecting to SQL Server with config:", this.config);
+    return true;
     // sql.connect(
     //   {
     //     server: "MSI\\SQLEXPRESS",
@@ -380,14 +382,25 @@ class DatabaseService {
     return result.recordset;
   }
 
+  // async getPlantCodes() {
+  //   const query = `
+  //     SELECT *
+  //     FROM PlantTbl 
+  //     ORDER BY PlantCode
+  //   `;
+  //   const result = await this.executeQuery(query);
+  //   return result.recordset;
+  // }
   async getPlantCodes() {
-    const query = `
-      SELECT *
-      FROM PlantTbl 
-      ORDER BY PlantCode
-    `;
-    const result = await this.executeQuery(query);
-    return result.recordset;
+    try {
+      const soapService = new SoapService(); // now it's an instance
+      const plantCodes = await soapService.getAllPlantCodes();
+      console.log("plant codes from soap:",plantCodes)
+      return plantCodes; // already parsed JSON [{PlantCode:"BEK",...}]
+    } catch (err) {
+      console.error("Failed to fetch plant codes from SOAP:", err);
+      throw err;
+    }
   }
 
   // async getCurrentContentForDevice(customId) {
@@ -483,15 +496,31 @@ class DatabaseService {
     };
   }
 
+  // async getDeviceByMacAddress(macAddress) {
+  //   const query = `
+  //     SELECT *
+  //     FROM DevicesTbl 
+  //     WHERE MACAddress = @macAddress
+  //   `;
+  //   console.log("Fetching device by MAC address:", macAddress);
+  //   const result = await this.executeQuery(query, { macAddress });
+  //   return result.recordset[0] || null;
+  // }
   async getDeviceByMacAddress(macAddress) {
-    const query = `
-      SELECT *
-      FROM DevicesTbl 
-      WHERE MACAddress = @macAddress
-    `;
-    console.log("Fetching device by MAC address:", macAddress);
-    const result = await this.executeQuery(query, { macAddress });
-    return result.recordset[0] || null;
+    try {
+      const soapService = new SoapService(); // create instance
+      const macDevices = await soapService.getDeviceByMac(macAddress);
+      console.log("macDevices",macDevices);
+  
+      if (Array.isArray(macDevices) && macDevices.length > 0) {
+        return macDevices[0]; // return the first result
+      }
+  
+      return null; // no devices found
+    } catch (err) {
+      console.error("Failed to fetch device from SOAP:", err);
+      throw err;
+    }
   }
 
   async getDeviceStatus(scrId) {

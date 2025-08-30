@@ -55,6 +55,7 @@
     "tailwindcss": "^3.4.17"
   },
   "dependencies": {
+    "axios": "^1.11.0",
     "bcryptjs": "^3.0.2",
     "copy-webpack-plugin": "^13.0.0",
     "electron-squirrel-startup": "^1.0.1",
@@ -63,6 +64,7 @@
     "msnodesqlv8": "^5.1.1",
     "mssql": "^11.0.1",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.8.2"
   }
 }
