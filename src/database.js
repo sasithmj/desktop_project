@@ -515,18 +515,11 @@ class DatabaseService {
     // Filter content for the specific device
     const soapService = new SoapService();
     const contentList = await soapService.getContent({screenID:"SR000001"})
-    console.log(contentList);
-    // const deviceContent = contentList.filter(item => item.ScrID === targetScrID);
     
-    // if (!deviceContent || deviceContent.length === 0) {
-    //   console.log("No content for the Display...");
-    //   return null;
-    // }
-  
     const currentTime = new Date();
     
     // Filter and categorize content based on schedule type and time conditions
-    const validContent = deviceContent.filter(item => {
+    const validContent = contentList.filter(item => {
       const scheduleType = item.SchedileType || item.ScheduleType; // Handle typo in field name
       
       if (scheduleType === 'Live' || scheduleType === 'Default') {
