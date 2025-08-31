@@ -3,6 +3,7 @@ const { createFullscreenWindow } = require("../main.js");
 const WindowHandlers = require("./windowHandlers.js");
 const path = require("path");
 const https = require("https");
+const DatabaseService = require("../database.js");
 
 class SchedulerHandlers {
   constructor() {
@@ -24,10 +25,7 @@ class SchedulerHandlers {
     // Start content scheduler for a specific screen
     ipcMain.handle("start-content-scheduler", async (event, config) => {
       try {
-        if (!this.dbService) {
-          throw new Error("Database service not initialized");
-        }
-
+      
         const { scrId, refreshInterval = 1 * 60 * 1000 } = config; // Default 5 minutes
 
         // Stop existing scheduler if running
@@ -52,6 +50,36 @@ class SchedulerHandlers {
         };
       }
     });
+    // ipcMain.handle("start-content-scheduler", async (event, config) => {
+    //   try {
+    //     if (!this.dbService) {
+    //       throw new Error("Database service not initialized");
+    //     }
+
+    //     const { scrId, refreshInterval = 1 * 60 * 1000 } = config; // Default 5 minutes
+
+    //     // Stop existing scheduler if running
+    //     this.stopSchedulerForScreen(scrId);
+
+    //     // Start new scheduler
+    //     const content = await this.startSchedulerForScreen(
+    //       scrId,
+    //       refreshInterval
+    //     );
+
+    //     return {
+    //       success: true,
+    //       message: `Content scheduler started for screen ${scrId}`,
+    //       data: content,
+    //     };
+    //   } catch (error) {
+    //     console.error("Error starting content scheduler:", error);
+    //     return {
+    //       success: false,
+    //       error: error.message,
+    //     };
+    //   }
+    // });
 
     // Stop content scheduler
     ipcMain.handle("stop-content-scheduler", async (event, scrId) => {
@@ -553,13 +581,9 @@ class SchedulerHandlers {
     console.log(`================Checking content for screen ${scrId}`);
 
     try {
-      if (!this.dbService) {
-        console.warn("Database service not available for content check");
-        return;
-      }
-
+   const databaseService =new DatabaseService();
       // Get current content for the screen
-      const contentResult = await this.dbService.getCurrentContentForDevice(
+      const contentResult = await databaseService.getCurrentContentForDevice(
         scrId
       );
 
@@ -640,6 +664,97 @@ class SchedulerHandlers {
       console.error(`Error checking content for screen ${scrId}:`, error);
     }
   }
+  // async checkAndUpdateContent(scrId, forceUpdate = false) {
+  //   console.log(`================Checking content for screen ${scrId}`);
+
+  //   try {
+  //     if (!this.dbService) {
+  //       console.warn("Database service not available for content check");
+  //       return;
+  //     }
+
+  //     // Get current content for the screen
+  //     const contentResult = await this.dbService.getCurrentContentForDevice(
+  //       scrId
+  //     );
+
+  //     console.log(
+  //       `Current playing content for screen ${scrId}:`,
+  //       this.currentPlayingContent
+  //     );
+
+  //     if (contentResult) {
+  //       let currentContent = null;
+  //       let shouldUpdate = forceUpdate; // Start with forceUpdate flag
+
+  //       // Handle different content types
+  //       if (contentResult.type === "DEFAULT_POOL") {
+  //         // Check if we need to select a new default content
+  //         const needsDefaultUpdate = this.shouldUpdateDefaultContent(
+  //           contentResult.items
+  //         );
+  //         shouldUpdate = shouldUpdate || needsDefaultUpdate;
+
+  //         if (needsDefaultUpdate) {
+  //           // Select random default content
+  //           const randomIndex = Math.floor(
+  //             Math.random() * contentResult.items.length
+  //           );
+  //           currentContent = contentResult.items[randomIndex];
+  //           // Set start time for default content
+  //           currentContent.actualStartTime = new Date();
+  //         } else {
+  //           // Keep current content
+  //           currentContent = this.currentPlayingContent;
+  //         }
+  //       } else {
+  //         // Live or Schedule content
+  //         currentContent = contentResult;
+  //         const prevContent = this.currentPlayingContent;
+  //         shouldUpdate =
+  //           shouldUpdate ||
+  //           !prevContent ||
+  //           prevContent.Id !== currentContent.Id;
+  //       }
+
+  //       if (shouldUpdate && currentContent) {
+  //         console.log(`Updating content for screen ${scrId}:`, currentContent);
+
+  //         this.currentPlayingContent = currentContent;
+
+  //         // Determine display URL
+  //         let displayUrl = currentContent.Source;
+
+  //         if (currentContent.Type.toLowerCase() === "url") {
+  //           // If it's a YouTube embed or similar, append autoplay & mute if not present
+  //           if (displayUrl.includes("youtube.com/embed/")) {
+  //             if (!displayUrl.includes("autoplay=1")) {
+  //               displayUrl += displayUrl.includes("?")
+  //                 ? "&autoplay=1&mute=1"
+  //                 : "?autoplay=1&mute=1";
+  //             }
+  //           }
+  //         }
+
+  //         // Use your WindowHandlers instance to open/update the display window
+  //         if (this.windowHandlers) {
+  //           await this.windowHandlers.createDisplayWindow(displayUrl);
+  //           console.log(`Display window updated with URL: ${displayUrl}`);
+  //         } else {
+  //           console.error("WindowHandlers instance not set");
+  //         }
+  //       } else {
+  //         console.log("Content unchanged, no update sent.");
+  //       }
+
+  //       return currentContent;
+  //     } else {
+  //       console.log(`No content available for screen ${scrId}`);
+  //     }
+  //   } catch (error) {
+  //     console.error(`Error checking content for screen ${scrId}:`, error);
+  //   }
+  // }
 
   // Helper method to determine if default content should be updated
   shouldUpdateDefaultContent(availableDefaultItems) {

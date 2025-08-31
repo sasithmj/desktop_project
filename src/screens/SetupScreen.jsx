@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   MapPin,
 } from "lucide-react";
+import Login from "./Login.jsx";
 
 export default function SetupScreen({ onNavigate, onConfigSaved }) {
   const [deviceConfig, setDeviceConfig] = useState({
@@ -119,7 +120,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
     console.log("device config for soap: ",deviceConfig)
 
     try {
-      const result = await window.electronAPI.registerDeviceSOAP(deviceConfig);
+      const result = await window.electronAPI.saveDeviceConfig(deviceConfig);
 
       if (result.success) {
         setStatus({
@@ -129,7 +130,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
 
         if (onConfigSaved) onConfigSaved();
         setTimeout(() => {
-          if (onNavigate) onNavigate("main");
+          if (onNavigate) onNavigate();
         }, 1500);
       } else {
         setStatus({
@@ -331,7 +332,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
         <div className="p-6 border-t border-gray-100 bg-gray-50">
           <div className="flex space-x-3">
             <button
-              onClick={handleSave}
+              onClick={handleTestConnection}
               disabled={saving}
               className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2.5 rounded-lg font-semibold transition-colors flex items-center justify-center space-x-2 text-sm"
             >

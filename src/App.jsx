@@ -5,32 +5,36 @@ import FullScreenPlayer from "./screens/FullScreenPlayer.jsx";
 import Login from "./screens/Login.jsx";
 
 export default function App() {
-  const [configExists, setConfigExists] = useState(null); // null = loading, true/false = result
-  const [currentScreen, setCurrentScreen] = useState("main"); // "main" or "setup"
+  const [configExists, setConfigExists] = useState(null); // null = loading
+  const [currentScreen, setCurrentScreen] = useState(null);
 
   const navigate = (screen) => {
     setCurrentScreen(screen);
   };
 
   const handleConfigSaved = () => {
-    // When configuration is saved, update the state to show main app
     setConfigExists(true);
+    setCurrentScreen("remote"); // jump to RemoteConnect after saving config
   };
 
   const refreshConfig = async () => {
-    setConfigExists(null); // Set to loading state
+    setConfigExists(null); // Loading state
     try {
       const config = await window.electronAPI.getDeviceConfig();
-      if (config && config.dbConfig && config.deviceConfig) {
+      console.log("config from app.jsx:", config);
+      if (config) {
         console.log("Configuration found:", config);
         setConfigExists(true);
+        setCurrentScreen("remote"); // go straight to RemoteConnect
       } else {
-        console.log("Configuration incomplete or missing:", config);
+        console.log("Configuration missing");
         setConfigExists(false);
+        setCurrentScreen("setup");
       }
     } catch (error) {
       console.error("Error checking device config:", error);
       setConfigExists(false);
+      setCurrentScreen("setup");
     }
   };
 
@@ -46,32 +50,19 @@ export default function App() {
     );
   }
 
-  // If no configuration exists, always show setup screen
-  if (!configExists) {
-    return (
-      <SetupScreen onNavigate={navigate} onConfigSaved={handleConfigSaved} />
-    );
+  // Show screens based on state
+  if (currentScreen === "setup") {
+    return <SetupScreen onNavigate={navigate} onConfigSaved={handleConfigSaved} />;
   }
 
-  // If configuration exists, show based on current screen
-  if (currentScreen === "setup") {
-    return (
-      <SetupScreen onNavigate={navigate} onConfigSaved={handleConfigSaved} />
-    );
-  }
   if (currentScreen === "login") {
     return <Login onNavigate={navigate} />;
   }
+
   if (currentScreen === "fullscreen") {
-    return (
-      <FullScreenPlayer
-        onNavigate={navigate}
-        onConfigSaved={handleConfigSaved}
-      />
-    );
+    return <FullScreenPlayer onNavigate={navigate} onConfigSaved={handleConfigSaved} />;
   }
 
-  return (
-    <RemoteConnect onNavigate={navigate} onRefreshConfig={refreshConfig} />
-  );
+  // Default → RemoteConnect if config exists
+  return <RemoteConnect onNavigate={navigate} onRefreshConfig={refreshConfig} />;
 }

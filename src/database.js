@@ -230,17 +230,17 @@ class DatabaseService {
       let result;
 
       if (existingDevice) {
-        // ✅ Update existing device
-        result = await this.updateDeviceByMacAddress(
-          scrName,
-          scrLoc,
-          ipAddress,
-          macAddress,
-          createdBy,
-          scrStatus,
-          onStatus,
-          plantCode
-        );
+        // // ✅ Update existing device
+        // result = await this.updateDeviceByMacAddress(
+        //   scrName,
+        //   scrLoc,
+        //   ipAddress,
+        //   macAddress,
+        //   createdBy,
+        //   scrStatus,
+        //   onStatus,
+        //   plantCode
+        // );
 
         console.log("Device updated successfully:", result);
 
@@ -268,19 +268,13 @@ class DatabaseService {
           plantCode
         );
 
-        const insertedDevice = result.recordset[0];
-        console.log("Device registered successfully:", result);
+        const deviceData=this.getDeviceByMacAddress(macAddress);
+        console.log("device data from storedAddress: ",deviceData)
 
         return {
           success: true,
           message: "Device registered successfully",
-          device: {
-            id: insertedDevice.Id,
-            scrId: insertedDevice.ScrID,
-            name: scrName,
-            location: scrLoc,
-            plantId: plantCode,
-          },
+          deviceData:deviceData
         };
       }
     } catch (error) {
@@ -299,23 +293,57 @@ class DatabaseService {
     onStatus = "",
     plantCode
   ) {
-    const query = `
-        INSERT INTO DevicesTbl 
-        (ScrName, ScrLoc, IPAddress, MACAddress, CreatedDate, CreatedBy, ScrStatus, OnStatus, PlantCode)
-        VALUES 
-        (@scrName, @scrLoc, @ipAddress, @macAddress, GETDATE(), @createdBy, @scrStatus , @onStatus , @plantCode)
-    `;
-    await this.executeQuery(query, {
-      scrName,
-      scrLoc,
-      ipAddress,
-      macAddress,
-      createdBy,
-      scrStatus,
-      onStatus,
-      plantCode,
-    });
+
+    try {
+      const soapService = new SoapService(); // now it's an instance
+      const res = await soapService.registerDevice({
+        screenName: scrName,
+        screenLocation: scrLoc,
+        ip: ipAddress,
+        mac: macAddress,
+        screenStatus: scrStatus,
+        plantCode
+      });
+
+      if (res === "OK") {
+        console.log("Device registered successfully!");
+      } else {
+        console.error("Device registration failed:", res);
+      }
+
+    } catch (err) {
+      console.error("Failed to register device", err);
+      throw err;
+    }
+
   }
+  // async storeMacAddressMapping(
+  //   scrName,
+  //   scrLoc,
+  //   ipAddress,
+  //   macAddress,
+  //   createdBy,
+  //   scrStatus = "",
+  //   onStatus = "",
+  //   plantCode
+  // ) {
+  //   const query = `
+  //       INSERT INTO DevicesTbl 
+  //       (ScrName, ScrLoc, IPAddress, MACAddress, CreatedDate, CreatedBy, ScrStatus, OnStatus, PlantCode)
+  //       VALUES 
+  //       (@scrName, @scrLoc, @ipAddress, @macAddress, GETDATE(), @createdBy, @scrStatus , @onStatus , @plantCode)
+  //   `;
+  //   await this.executeQuery(query, {
+  //     scrName,
+  //     scrLoc,
+  //     ipAddress,
+  //     macAddress,
+  //     createdBy,
+  //     scrStatus,
+  //     onStatus,
+  //     plantCode,
+  //   });
+  // }
 
   async updateDeviceByMacAddress(
     scrName,
@@ -350,6 +378,39 @@ class DatabaseService {
       macAddress,
     });
   }
+  // async updateDeviceByMacAddress(
+  //   scrName,
+  //   scrLoc,
+  //   ipAddress,
+  //   macAddress,
+  //   createdBy,
+  //   scrStatus,
+  //   onStatus,
+  //   plantCode
+  // ) {
+  //   const query = `
+  //       UPDATE DevicesTbl
+  //       SET ScrName = @scrName,
+  //       ScrLoc = @scrLoc,
+  //       IPAddress = @ipAddress,
+  //       CreatedBy = @createdBy,
+  //       ScrStatus = @scrStatus,
+  //       OnStatus = @onStatus,
+  //       PlantCode = @plantCode
+  //   WHERE MACAddress = @macAddress
+  //   `;
+  //   console.log("Updating device with MAC:", macAddress);
+  //   await this.executeQuery(query, {
+  //     scrName,
+  //     scrLoc,
+  //     ipAddress,
+  //     createdBy,
+  //     scrStatus,
+  //     onStatus,
+  //     plantCode,
+  //     macAddress,
+  //   });
+  // }
 
   async getLocationList() {
     const query = `
@@ -395,7 +456,7 @@ class DatabaseService {
     try {
       const soapService = new SoapService(); // now it's an instance
       const plantCodes = await soapService.getAllPlantCodes();
-      console.log("plant codes from soap:",plantCodes)
+      console.log("plant codes from soap:", plantCodes)
       return plantCodes; // already parsed JSON [{PlantCode:"BEK",...}]
     } catch (err) {
       console.error("Failed to fetch plant codes from SOAP:", err);
@@ -450,51 +511,140 @@ class DatabaseService {
   //   return defaultItems[0];
   // }
 
-  async getCurrentContentForDevice(customId) {
-    const query = `
-    SELECT Id, ScrID, Type, Source, DurMin, ScheduleType, StartTime, Title, CreatedAt
-    FROM DevicesURLTbl 
-    WHERE ScrID = @scrId
-    AND (
-      ScheduleType = 'Live' 
-      OR ScheduleType = 'Default'
-      OR (
-        ScheduleType = 'Schedule'
-        AND StartTime <= GETDATE() 
-        AND DATEADD(MINUTE, DurMin, StartTime) >= GETDATE()
-      )
-    )
-    ORDER BY 
-      CASE 
-        WHEN ScheduleType = 'Live' THEN 1
-        WHEN ScheduleType = 'Schedule' THEN 2
-        WHEN ScheduleType = 'Default' THEN 3
-      END,
-      StartTime DESC
-  `;
+  async getCurrentContentForDevice(targetScrID="SR000001") {
+    // Filter content for the specific device
+    const soapService = new SoapService();
+    const contentList = await soapService.getContent({screenID:"SR000001"})
+    console.log(contentList);
+    // const deviceContent = contentList.filter(item => item.ScrID === targetScrID);
+    
+    // if (!deviceContent || deviceContent.length === 0) {
+    //   console.log("No content for the Display...");
+    //   return null;
+    // }
+  
+    const currentTime = new Date();
+    
+    // Filter and categorize content based on schedule type and time conditions
+    const validContent = deviceContent.filter(item => {
+      const scheduleType = item.SchedileType || item.ScheduleType; // Handle typo in field name
+      
+      if (scheduleType === 'Live' || scheduleType === 'Default') {
+        return true;
+      }
+      
+      if (scheduleType === 'Schedule') {
+        const startTime = new Date(item.StartTime);
+        const endTime = new Date(startTime.getTime() + (item.DurMin * 60 * 1000));
+        
+        // Check if current time is within the scheduled window
+        return currentTime >= startTime && currentTime <= endTime;
+      }
+      
+      return false;
+    });
+  
+    if (validContent.length === 0) {
+      console.log("No valid content for the Display...");
 
-    const result = await this.executeQuery(query, { scrId: customId });
-    const records = result.recordset;
-
-    console.log("Current content for device:", records);
-
-    if (!records || records.length === 0) return null;
-
-    // Case 1: Highest priority content (Live or Schedule)
-    if (records[0].ScheduleType !== "Default") {
-      return records[0];
+      return null;
     }
-
+  
+    // Sort by priority and StartTime (same logic as SQL ORDER BY)
+    validContent.sort((a, b) => {
+      const scheduleTypeA = a.SchedileType || a.ScheduleType;
+      const scheduleTypeB = b.SchedileType || b.ScheduleType;
+      
+      // Priority: Live = 1, Schedule = 2, Default = 3
+      const getPriority = (type) => {
+        switch(type) {
+          case 'Live': return 1;
+          case 'Schedule': return 2;
+          case 'Default': return 3;
+          default: return 4;
+        }
+      };
+      
+      const priorityA = getPriority(scheduleTypeA);
+      const priorityB = getPriority(scheduleTypeB);
+      
+      // First sort by priority
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      // Then sort by StartTime DESC (newest first)
+      const startTimeA = new Date(a.StartTime);
+      const startTimeB = new Date(b.StartTime);
+      return startTimeB - startTimeA;
+    });
+  
+    console.log("Current content for device:", validContent);
+  
+    // Case 1: Highest priority content (Live or Schedule)
+    const topItem = validContent[0];
+    const topScheduleType = topItem.SchedileType || topItem.ScheduleType;
+    
+    if (topScheduleType !== "Default") {
+      return topItem;
+    }
+  
     // Case 2: All are Default — return all default items for app logic to handle
-    const defaultItems = records.filter(
-      (item) => item.ScheduleType === "Default"
-    );
-
+    const defaultItems = validContent.filter(item => {
+      const scheduleType = item.SchedileType || item.ScheduleType;
+      return scheduleType === "Default";
+    });
+  
     return {
       type: "DEFAULT_POOL",
       items: defaultItems,
     };
   }
+  // async getCurrentContentForDevice(customId) {
+  //   const query = `
+  //   SELECT Id, ScrID, Type, Source, DurMin, ScheduleType, StartTime, Title, CreatedAt
+  //   FROM DevicesURLTbl 
+  //   WHERE ScrID = @scrId
+  //   AND (
+  //     ScheduleType = 'Live' 
+  //     OR ScheduleType = 'Default'
+  //     OR (
+  //       ScheduleType = 'Schedule'
+  //       AND StartTime <= GETDATE() 
+  //       AND DATEADD(MINUTE, DurMin, StartTime) >= GETDATE()
+  //     )
+  //   )
+  //   ORDER BY 
+  //     CASE 
+  //       WHEN ScheduleType = 'Live' THEN 1
+  //       WHEN ScheduleType = 'Schedule' THEN 2
+  //       WHEN ScheduleType = 'Default' THEN 3
+  //     END,
+  //     StartTime DESC
+  // `;
+
+  //   const result = await this.executeQuery(query, { scrId: customId });
+  //   const records = result.recordset;
+
+  //   console.log("Current content for device:", records);
+
+  //   if (!records || records.length === 0) return null;
+
+  //   // Case 1: Highest priority content (Live or Schedule)
+  //   if (records[0].ScheduleType !== "Default") {
+  //     return records[0];
+  //   }
+
+  //   // Case 2: All are Default — return all default items for app logic to handle
+  //   const defaultItems = records.filter(
+  //     (item) => item.ScheduleType === "Default"
+  //   );
+
+  //   return {
+  //     type: "DEFAULT_POOL",
+  //     items: defaultItems,
+  //   };
+  // }
 
   // async getDeviceByMacAddress(macAddress) {
   //   const query = `
@@ -510,12 +660,10 @@ class DatabaseService {
     try {
       const soapService = new SoapService(); // create instance
       const macDevices = await soapService.getDeviceByMac(macAddress);
-      console.log("macDevices",macDevices);
-  
       if (Array.isArray(macDevices) && macDevices.length > 0) {
         return macDevices[0]; // return the first result
       }
-  
+
       return null; // no devices found
     } catch (err) {
       console.error("Failed to fetch device from SOAP:", err);

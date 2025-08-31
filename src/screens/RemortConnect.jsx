@@ -35,18 +35,20 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
 
   useEffect(() => {
     if (deviceConfig?.scrId) {
+      console.log("Loading device Config..........");
       loadCurrentContent();
     }
   }, [deviceConfig]);
 
   const loadDeviceConfig = async () => {
     try {
+      
       const config = await window.electronAPI.getDeviceConfig();
-      if (config && config.deviceConfig) {
+      if (config) {
         console.log("Device config loaded:", config);
-        setDeviceConfig(config.deviceConfig);
+        setDeviceConfig(config);
         const screenId = await window.electronAPI.getDeviceByMac(
-          config.deviceConfig.macAddress
+          config.macAddress
         );
       }
     } catch (error) {

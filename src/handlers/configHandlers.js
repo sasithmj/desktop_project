@@ -67,27 +67,24 @@ class ConfigHandlers {
       // Save config to file
       await fs.writeFile(this.configPath, JSON.stringify(config, null, 2));
 
-      // Initialize database service
-      this.dbService = new DatabaseService(config.dbConfig);
-
-      // Test connection and register/update device
-      await this.dbService.connect();
-      console.log("Database connected successfully");
-      await this.dbService.registerDevice(
-        config.deviceConfig.scrName,
-        config.deviceConfig.scrLoc,
-        config.deviceConfig.ipAddress,
-        config.deviceConfig.macAddress,
-        config.deviceConfig.createdBy,
-        config.deviceConfig.scrStatus,
-        config.deviceConfig.onStatus,
-        config.deviceConfig.plantCode
+      console.log("config data in saveConfig:",config);
+      const databaseService = new DatabaseService();
+      
+      await databaseService.registerDevice(
+        config.scrName,
+        config.scrLoc,
+        config.ipAddress,
+        config.macAddress,
+        config.createdBy,
+        config.scrStatus,
+        config.onStatus,
+        config.plantCode
       );
 
-      // Notify other handlers about the new db service
-      if (this.onDbServiceReady) {
-        this.onDbServiceReady(this.dbService);
-      }
+      // // Notify other handlers about the new db service
+      // if (this.onDbServiceReady) {
+      //   this.onDbServiceReady(this.dbService);
+      // }
 
       return { success: true };
     } catch (error) {
@@ -95,6 +92,39 @@ class ConfigHandlers {
       return { success: false, error: error.message };
     }
   }
+  // async saveDeviceConfigHandler(event, config) {
+  //   try {
+  //     // Save config to file
+  //     await fs.writeFile(this.configPath, JSON.stringify(config, null, 2));
+
+  //     // Initialize database service
+  //     this.dbService = new DatabaseService(config.dbConfig);
+
+  //     // Test connection and register/update device
+  //     await this.dbService.connect();
+  //     console.log("Database connected successfully");
+  //     await this.dbService.registerDevice(
+  //       config.deviceConfig.scrName,
+  //       config.deviceConfig.scrLoc,
+  //       config.deviceConfig.ipAddress,
+  //       config.deviceConfig.macAddress,
+  //       config.deviceConfig.createdBy,
+  //       config.deviceConfig.scrStatus,
+  //       config.deviceConfig.onStatus,
+  //       config.deviceConfig.plantCode
+  //     );
+
+  //     // Notify other handlers about the new db service
+  //     if (this.onDbServiceReady) {
+  //       this.onDbServiceReady(this.dbService);
+  //     }
+
+  //     return { success: true };
+  //   } catch (error) {
+  //     console.error("Failed to save config or connect to database:", error);
+  //     return { success: false, error: error.message };
+  //   }
+  // }
 
   async getDeviceConfigHandler() {
     try {
@@ -104,12 +134,12 @@ class ConfigHandlers {
       console.log("Loaded device config:", config);
 
       // Initialize database service if config exists
-      if (config.dbConfig) {
-        this.dbService = new DatabaseService(config.dbConfig);
-        if (this.onDbServiceReady) {
-          this.onDbServiceReady(this.dbService);
-        }
-      }
+      // if (config) {
+      //   this.dbService = new DatabaseService(config.dbConfig);
+      //   if (this.onDbServiceReady) {
+      //     this.onDbServiceReady(this.dbService);
+      //   }
+      // }
 
       return config;
     } catch (error) {

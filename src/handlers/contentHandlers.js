@@ -1,4 +1,5 @@
 const { ipcMain } = require("electron");
+const DatabaseService = require("../database");
 
 class ContentHandlers {
   constructor() {
@@ -34,12 +35,10 @@ class ContentHandlers {
 
     // Get current content for a device
     ipcMain.handle("get-current-content", async (event, scrId) => {
+      console.log("Getting content........");
       try {
-        if (!this.dbService) {
-          throw new Error("Database service not initialized");
-        }
-
-        const currentContent = await this.dbService.getCurrentContentForDevice(
+        const databaseService=new DatabaseService();
+        const currentContent = await databaseService.getCurrentContentForDevice(
           scrId
         );
         console.log("Current content for screen:", scrId, currentContent);
@@ -55,6 +54,29 @@ class ContentHandlers {
         };
       }
     });
+    // // Get current content for a device
+    // ipcMain.handle("get-current-content", async (event, scrId) => {
+    //   try {
+    //     if (!this.dbService) {
+    //       throw new Error("Database service not initialized");
+    //     }
+
+    //     const currentContent = await this.dbService.getCurrentContentForDevice(
+    //       scrId
+    //     );
+    //     console.log("Current content for screen:", scrId, currentContent);
+    //     return {
+    //       success: true,
+    //       data: currentContent,
+    //     };
+    //   } catch (error) {
+    //     console.error("Error getting current content:", error);
+    //     return {
+    //       success: false,
+    //       error: error.message,
+    //     };
+    //   }
+    // });
 
     // Add new content item
     ipcMain.handle("add-content-item", async (event, contentData) => {
