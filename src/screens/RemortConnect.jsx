@@ -23,7 +23,7 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
   const [schedulerStatus, setSchedulerStatus] = useState("stopped");
   const [refreshInterval, setRefreshInterval] = useState(1);
   const [showContentScheduler, setShowContentScheduler] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false); 
   const [showStats, setShowStats] = useState(false);
   const [stats, setStats] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
@@ -42,7 +42,6 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
 
   const loadDeviceConfig = async () => {
     try {
-      
       const config = await window.electronAPI.getDeviceConfig();
       if (config) {
         console.log("Device config loaded:", config);
@@ -69,7 +68,7 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
         );
         console.log("Current content result:", result);
         if (result.success && result.data) {
-          setCurrentContent(result.data);
+          // setCurrentContent(result.data);
 
           startContentMonitoring(result.data); // pass content
         }
@@ -94,11 +93,17 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
           refreshInterval: refreshInterval * 60 * 1000,
         });
 
+        console.log("Start scheduler result:", result);
+
         if (result.success) {
           setSchedulerStatus("running");
           setConnectionStatus("connected");
-          setCurrentContent(result.data);
+          // setCurrentContent(result.data);
           setLastUpdate(new Date());
+        }
+
+        if (result.data) {
+          setCurrentContent(result.data);
         }
       }
     } catch (error) {
@@ -305,15 +310,6 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                         </div>
                       </div>
                     </div>
-
-                    {currentContent.StartTime && (
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-sm text-gray-600">
-                          Scheduled for:{" "}
-                          {formatDateTime(currentContent.StartTime)}
-                        </p>
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12">
@@ -321,7 +317,7 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                     <p className="mt-2 text-gray-500">
                       No content currently displayed
                     </p>
-                  </div>
+                  </div> 
                 )}
               </div>
             </div>

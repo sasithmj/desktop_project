@@ -268,13 +268,13 @@ class DatabaseService {
           plantCode
         );
 
-        const deviceData=this.getDeviceByMacAddress(macAddress);
-        console.log("device data from storedAddress: ",deviceData)
+        const deviceData = this.getDeviceByMacAddress(macAddress);
+        console.log("device data from storedAddress: ", deviceData);
 
         return {
           success: true,
           message: "Device registered successfully",
-          deviceData:deviceData
+          deviceData: deviceData,
         };
       }
     } catch (error) {
@@ -293,16 +293,15 @@ class DatabaseService {
     onStatus = "",
     plantCode
   ) {
-
     try {
-      const soapService = new SoapService(); // now it's an instance
+      const soapService = new SoapService();
       const res = await soapService.registerDevice({
         screenName: scrName,
         screenLocation: scrLoc,
         ip: ipAddress,
         mac: macAddress,
         screenStatus: scrStatus,
-        plantCode
+        plantCode,
       });
 
       if (res === "OK") {
@@ -310,12 +309,10 @@ class DatabaseService {
       } else {
         console.error("Device registration failed:", res);
       }
-
     } catch (err) {
       console.error("Failed to register device", err);
       throw err;
     }
-
   }
   // async storeMacAddressMapping(
   //   scrName,
@@ -328,9 +325,9 @@ class DatabaseService {
   //   plantCode
   // ) {
   //   const query = `
-  //       INSERT INTO DevicesTbl 
+  //       INSERT INTO DevicesTbl
   //       (ScrName, ScrLoc, IPAddress, MACAddress, CreatedDate, CreatedBy, ScrStatus, OnStatus, PlantCode)
-  //       VALUES 
+  //       VALUES
   //       (@scrName, @scrLoc, @ipAddress, @macAddress, GETDATE(), @createdBy, @scrStatus , @onStatus , @plantCode)
   //   `;
   //   await this.executeQuery(query, {
@@ -446,7 +443,7 @@ class DatabaseService {
   // async getPlantCodes() {
   //   const query = `
   //     SELECT *
-  //     FROM PlantTbl 
+  //     FROM PlantTbl
   //     ORDER BY PlantCode
   //   `;
   //   const result = await this.executeQuery(query);
@@ -454,10 +451,10 @@ class DatabaseService {
   // }
   async getPlantCodes() {
     try {
-      const soapService = new SoapService(); // now it's an instance
+      const soapService = new SoapService();
       const plantCodes = await soapService.getAllPlantCodes();
-      console.log("plant codes from soap:", plantCodes)
-      return plantCodes; // already parsed JSON [{PlantCode:"BEK",...}]
+      console.log("plant codes from soap:", plantCodes);
+      return plantCodes;
     } catch (err) {
       console.error("Failed to fetch plant codes from SOAP:", err);
       throw err;
@@ -511,104 +508,187 @@ class DatabaseService {
   //   return defaultItems[0];
   // }
 
-  async getCurrentContentForDevice(targetScrID="SR000001") {
+  formatToISO(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString("sv-SE").replace(" ", "T"); // keeps local time
+  }
+
+  async getCurrentContentForDevice(targetScrID) {
     // Filter content for the specific device
     const soapService = new SoapService();
-    const contentList = await soapService.getContent({screenID:"SR000001"})
-    
+    const contentList = await soapService.getContent({
+      screenID: targetScrID,
+    });
+
+    // const contentList = mainContentList.map((item) => ({
+    //   ...item,
+    //   StartTime: this.formatToISO(item.StartTime),
+    //   CreatedAt: this.formatToISO(item.CreatedAt),
+    // }));
+    console.log("Content list from SOAP:", contentList);
+
+    // const contentList = [
+    //   {
+    //     ScrID: "SR000006",
+    //     Type: "url",
+    //     Source: "https://www.youtube.com/embed/Jvr0U2ZInoE?si=NmfpOkPvDB9Zwiep",
+    //     DurMin: 5,
+    //     SchedileType: "Default",
+    //     StartTime: "2025-08-12T08:00:00",
+    //     Title: "Sales Dashboard",
+    //     CreatedAt: "2025-08-11T20:00:00",
+    //   },
+    //   {
+    //     ScrID: "SR000006",
+    //     Type: "url",
+    //     Source: "https://www.youtube.com/embed/40Vh7oYEke4?si=SIgABjEA9_u97UL1",
+    //     DurMin: 3,
+    //     SchedileType: "Scheduled",
+    //     StartTime: "2025-08-12T09:30:00",
+    //     Title: "Promotional Banner",
+    //     CreatedAt: "2025-08-11T21:00:00",
+    //   },
+    //   {
+    //     ScrID: "SR000006",
+    //     Type: "url",
+    //     Source: "https://example.com/videos/intro.mp4",
+    //     DurMin: 4,
+    //     SchedileType: "Scheduled",
+    //     StartTime: "2025-08-12T10:00:00",
+    //     Title: "Intro Video",
+    //     CreatedAt: "2025-08-11T22:00:00",
+    //   },
+    //   {
+    //     ScrID: "SR000006",
+    //     Type: "url",
+    //     Source: "https://picsum.photos/id/237/200/300",
+    //     DurMin: 1,
+    //     SchedileType: "Default",
+    //     StartTime: "2025-08-12T11:00:00",
+    //     Title: "Announcements",
+    //     CreatedAt: "2025-08-11T23:00:00",
+    //   },
+    //   {
+    //     ScrID: "SR000006",
+    //     Type: "url",
+    //     Source:
+    //       "https://www.accuweather.com/en/lk/badulla/310610/weather-forecast/310610",
+    //     DurMin: 3,
+    //     SchedileType: "Default",
+    //     StartTime: "2025-08-12T12:00:00",
+    //     Title: "Weather Updates",
+    //     CreatedAt: "2025-08-12T00:00:00",
+    //   },
+    //   {
+    //     ScrID: "SR000006",
+    //     Type: "url",
+    //     Source: "https://www.youtube.com/embed/WAvB6ywVnW4?si=2s4C6N2bq7a6vLVn",
+    //     DurMin: 4,
+    //     SchedileType: "Scheduled",
+    //     StartTime: "2025-08-12T13:00:00",
+    //     Title: "Event Banner",
+    //     CreatedAt: "2025-08-12T01:00:00",
+    //   },
+    // ];
+
     const currentTime = new Date();
-    
+
     // Filter and categorize content based on schedule type and time conditions
-    const validContent = contentList.filter(item => {
+    const validContent = contentList.filter((item) => {
       const scheduleType = item.SchedileType || item.ScheduleType; // Handle typo in field name
-      
-      if (scheduleType === 'Live' || scheduleType === 'Default') {
+
+      if (scheduleType === "Live" || scheduleType === "Default") {
         return true;
       }
-      
-      if (scheduleType === 'Schedule') {
+
+      if (scheduleType === "Scheduled") {
         const startTime = new Date(item.StartTime);
-        const endTime = new Date(startTime.getTime() + (item.DurMin * 60 * 1000));
-        
+        const endTime = new Date(startTime.getTime() + item.DurMin * 60 * 1000);
+
         // Check if current time is within the scheduled window
         return currentTime >= startTime && currentTime <= endTime;
       }
-      
+
       return false;
     });
-  
+
     if (validContent.length === 0) {
       console.log("No valid content for the Display...");
 
       return null;
     }
-  
+
     // Sort by priority and StartTime (same logic as SQL ORDER BY)
     validContent.sort((a, b) => {
       const scheduleTypeA = a.SchedileType || a.ScheduleType;
       const scheduleTypeB = b.SchedileType || b.ScheduleType;
-      
+
       // Priority: Live = 1, Schedule = 2, Default = 3
       const getPriority = (type) => {
-        switch(type) {
-          case 'Live': return 1;
-          case 'Schedule': return 2;
-          case 'Default': return 3;
-          default: return 4;
+        switch (type) {
+          case "Live":
+            return 1;
+          case "Scheduled":
+            return 2;
+          case "Default":
+            return 3;
+          default:
+            return 4;
         }
       };
-      
+
       const priorityA = getPriority(scheduleTypeA);
       const priorityB = getPriority(scheduleTypeB);
-      
+
       // First sort by priority
       if (priorityA !== priorityB) {
         return priorityA - priorityB;
       }
-      
+
       // Then sort by StartTime DESC (newest first)
       const startTimeA = new Date(a.StartTime);
       const startTimeB = new Date(b.StartTime);
       return startTimeB - startTimeA;
     });
-  
+
     console.log("Current content for device:", validContent);
-  
+
     // Case 1: Highest priority content (Live or Schedule)
     const topItem = validContent[0];
     const topScheduleType = topItem.SchedileType || topItem.ScheduleType;
-    
+
     if (topScheduleType !== "Default") {
       return topItem;
     }
-  
+
     // Case 2: All are Default — return all default items for app logic to handle
-    const defaultItems = validContent.filter(item => {
+    const defaultItems = validContent.filter((item) => {
       const scheduleType = item.SchedileType || item.ScheduleType;
       return scheduleType === "Default";
     });
-  
+
     return {
       type: "DEFAULT_POOL",
       items: defaultItems,
     };
   }
+
   // async getCurrentContentForDevice(customId) {
   //   const query = `
   //   SELECT Id, ScrID, Type, Source, DurMin, ScheduleType, StartTime, Title, CreatedAt
-  //   FROM DevicesURLTbl 
+  //   FROM DevicesURLTbl
   //   WHERE ScrID = @scrId
   //   AND (
-  //     ScheduleType = 'Live' 
+  //     ScheduleType = 'Live'
   //     OR ScheduleType = 'Default'
   //     OR (
   //       ScheduleType = 'Schedule'
-  //       AND StartTime <= GETDATE() 
+  //       AND StartTime <= GETDATE()
   //       AND DATEADD(MINUTE, DurMin, StartTime) >= GETDATE()
   //     )
   //   )
-  //   ORDER BY 
-  //     CASE 
+  //   ORDER BY
+  //     CASE
   //       WHEN ScheduleType = 'Live' THEN 1
   //       WHEN ScheduleType = 'Schedule' THEN 2
   //       WHEN ScheduleType = 'Default' THEN 3
@@ -642,7 +722,7 @@ class DatabaseService {
   // async getDeviceByMacAddress(macAddress) {
   //   const query = `
   //     SELECT *
-  //     FROM DevicesTbl 
+  //     FROM DevicesTbl
   //     WHERE MACAddress = @macAddress
   //   `;
   //   console.log("Fetching device by MAC address:", macAddress);

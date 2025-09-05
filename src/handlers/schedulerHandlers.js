@@ -25,7 +25,6 @@ class SchedulerHandlers {
     // Start content scheduler for a specific screen
     ipcMain.handle("start-content-scheduler", async (event, config) => {
       try {
-      
         const { scrId, refreshInterval = 1 * 60 * 1000 } = config; // Default 5 minutes
 
         // Stop existing scheduler if running
@@ -128,10 +127,6 @@ class SchedulerHandlers {
       "update-refresh-interval",
       async (event, { scrId, interval }) => {
         try {
-          if (!this.dbService) {
-            throw new Error("Database service not initialized");
-          }
-
           // Update the refresh interval
           this.refreshIntervals.set(scrId, interval);
 
@@ -441,12 +436,15 @@ class SchedulerHandlers {
           );
           lastOnlineStatus = true;
           lastDeviceStatus = true;
+          return this.currentPlayingContent;
         } catch (error) {
           console.error(`Error in initial scheduler run for ${scrId}:`, error);
         }
       })();
 
-      console.log(`Content scheduler started successfully for screen ${scrId}`);
+      console.log(
+        `Content scheduler started successfully for screen ${this.currentPlayingContent}`
+      );
       return this.currentPlayingContent;
     } catch (error) {
       console.error(`Error starting scheduler for screen ${scrId}:`, error);
@@ -581,7 +579,7 @@ class SchedulerHandlers {
     console.log(`================Checking content for screen ${scrId}`);
 
     try {
-   const databaseService =new DatabaseService();
+      const databaseService = new DatabaseService();
       // Get current content for the screen
       const contentResult = await databaseService.getCurrentContentForDevice(
         scrId
@@ -623,7 +621,7 @@ class SchedulerHandlers {
           shouldUpdate =
             shouldUpdate ||
             !prevContent ||
-            prevContent.Id !== currentContent.Id;
+            prevContent.Source !== currentContent.Source;
         }
 
         if (shouldUpdate && currentContent) {
@@ -760,22 +758,42 @@ class SchedulerHandlers {
   shouldUpdateDefaultContent(availableDefaultItems) {
     const currentContent = this.currentPlayingContent;
 
+    console.log("Checking shouldUpdateDefaultContent...");
+    console.log("Current content:", currentContent);
+    console.log("Available default items:", availableDefaultItems);
+
     // If no current content, we need to select one
     if (!currentContent) {
+      console.log("No current content — need to select one.");
       return true;
     }
 
     // If current content is not Default type, we need to select default
-    if (currentContent.ScheduleType !== "Default") {
+    if (
+      currentContent.ScheduleType !== "Default" &&
+      currentContent.SchedileType !== "Default"
+    ) {
+      console.log(
+        `⚠️ Current content type is not Default (found: ${
+          currentContent.ScheduleType || currentContent.SchedileType
+        })`
+      );
       return true;
     }
 
     // If current content is no longer in available default items, select new one
     const isCurrentContentStillAvailable = availableDefaultItems.some(
-      (item) => item.Id === currentContent.Id
+      (item) => item.Source === currentContent.Source
     );
     if (!isCurrentContentStillAvailable) {
+      console.log(
+        `⚠️ Current content (Id=${currentContent.Source}) not found in available default items.`
+      );
       return true;
+    } else {
+      console.log(
+        `✅ Current content (Id=${currentContent.Source}) is still in available default items.`
+      );
     }
 
     // Check if current default content has exceeded its duration
@@ -784,17 +802,29 @@ class SchedulerHandlers {
       const playingDuration =
         (now - new Date(currentContent.actualStartTime)) / (1000 * 60); // in minutes
 
+      console.log(
+        `⏱️ Playing duration: ${playingDuration.toFixed(
+          2
+        )} min, Allowed duration: ${currentContent.DurMin} min`
+      );
+
       if (playingDuration >= currentContent.DurMin) {
         console.log(
-          `Default content ${
+          `⚠️ Default content ${
             currentContent.Id
-          } has exceeded duration (${playingDuration.toFixed(1)}/${
+          } exceeded duration (${playingDuration.toFixed(1)}/${
             currentContent.DurMin
           } minutes)`
         );
         return true;
       }
+    } else {
+      console.log(
+        "ℹ️ No actualStartTime or DurMin defined for current content."
+      );
     }
+
+    console.log("✅ No update needed for default content.");
     return false;
   }
 
