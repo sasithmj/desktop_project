@@ -78,6 +78,31 @@ class NetworkUtils {
   }
 
   /**
+   * Gets the first connected IPv4 address from a physical, non-internal interface
+   * @returns {string|null} IPv4 address or null if not found
+   */
+  getIPv4Address() {
+    const networkInterfaces = os.networkInterfaces();
+
+    for (const interfaceName in networkInterfaces) {
+      const interfaces = networkInterfaces[interfaceName];
+
+      for (const iface of interfaces) {
+        if (
+          !iface.internal && // skip loopback
+          iface.family === "IPv4" && // only IPv4
+          iface.address && // has valid address
+          this._isPhysicalInterface(interfaceName)
+        ) {
+          return iface.address;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Gets all available network interfaces with their details
    * @returns {Object} Network interfaces object
    */

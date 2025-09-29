@@ -14,20 +14,28 @@ import {
   Loader2,
 } from "lucide-react";
 import ContentScheduler from "./ContentScheduler.jsx";
+import CountdownTimer from "./CountdownTimer.jsx";
 
 export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
-  const [deviceConfig, setDeviceConfig] = useState(null);
-  const [currentContent, setCurrentContent] = useState(null);
-  const [contentItems, setContentItems] = useState([]);
+  const [deviceConfig, setDeviceConfig] = useState({
+    macAddress: "",
+    scrId: "",
+    scrName: "",
+    scrLoc: "",
+    ipAddress: "",
+    createdBy: "",
+    scrStatus: "",
+    plantCode: "",
+  });
+  const [currentContent, setCurrentContent] = useState([]);
   const [loading, setLoading] = useState(true);
   const [schedulerStatus, setSchedulerStatus] = useState("stopped");
-  const [refreshInterval, setRefreshInterval] = useState(1);
+  // const [refreshInterval, setRefreshInterval] = useState(1);
   const [showContentScheduler, setShowContentScheduler] = useState(false);
-  const [showSettings, setShowSettings] = useState(false); 
-  const [showStats, setShowStats] = useState(false);
-  const [stats, setStats] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [licenseExpired, setLicenseExpired] = useState(false);
 
   useEffect(() => {
     loadDeviceConfig();
@@ -45,10 +53,17 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
       const config = await window.electronAPI.getDeviceConfig();
       if (config) {
         console.log("Device config loaded:", config);
-        setDeviceConfig(config);
-        const screenId = await window.electronAPI.getDeviceByMac(
-          config.macAddress
-        );
+        setDeviceConfig((prev) => ({
+          ...prev,
+          scrId: config.ScrID,
+          macAddress: config.MACAddress,
+          plantId: config.PlantCode,
+          scrName: config.ScrName,
+          scrLoc: config.ScrLoc,
+          ipAddress: config.IPAddress,
+          createdBy: config.CreatedBy,
+          plantCode: config.PlantCode,
+        }));
       }
     } catch (error) {
       console.error("Error loading device config:", error);
@@ -67,10 +82,12 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
           deviceConfig.scrId
         );
         console.log("Current content result:", result);
-        if (result.success && result.data) {
+        if (result.data) {
+          setCurrentContent(result.data);
+        }
+        if (result.success) {
           // setCurrentContent(result.data);
-
-          startContentMonitoring(result.data); // pass content
+          !licenseExpired ? startContentMonitoring(result.data) : null; // pass content
         }
       }
     } catch (error) {
@@ -90,7 +107,6 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
 
         const result = await window.electronAPI.startContentScheduler({
           scrId: deviceConfig.scrId,
-          refreshInterval: refreshInterval * 60 * 1000,
         });
 
         console.log("Start scheduler result:", result);
@@ -100,10 +116,6 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
           setConnectionStatus("connected");
           // setCurrentContent(result.data);
           setLastUpdate(new Date());
-        }
-
-        if (result.data) {
-          setCurrentContent(result.data);
         }
       }
     } catch (error) {
@@ -125,17 +137,17 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
     }
   };
 
-  const updateRefreshInterval = async (newInterval) => {
-    try {
-      await window.electronAPI.updateRefreshInterval({
-        scrId: deviceConfig?.scrId,
-        interval: newInterval * 60 * 1000,
-      });
-      setRefreshInterval(newInterval);
-    } catch (error) {
-      console.error("Error updating refresh interval:", error);
-    }
-  };
+  // const updateRefreshInterval = async (newInterval) => {
+  //   try {
+  //     await window.electronAPI.updateRefreshInterval({
+  //       scrId: deviceConfig?.scrId,
+  //       interval: newInterval * 60 * 1000,
+  //     });
+  //     setRefreshInterval(newInterval);
+  //   } catch (error) {
+  //     console.error("Error updating refresh interval:", error);
+  //   }
+  // };
 
   const getContentTypeIcon = (type) => {
     switch (type) {
@@ -256,7 +268,10 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                   )}
                 </button>
               </div>
-
+              <CountdownTimer
+                expiryDate="2025-10-02T23:59:00"
+                onExpire={() => setLicenseExpired(true)}
+              />
               {/* Settings Button */}
               <button
                 onClick={() => setShowSettings(!showSettings)}
@@ -290,26 +305,32 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                       Loading content...
                     </span>
                   </div>
-                ) : currentContent ? (
-                  <div className="space-y-4">
-                    <div className="flex items-start space-x-4">
-                      {getContentTypeIcon(currentContent.Type)}
-                      <div className="flex-1">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {currentContent.Title}
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {currentContent.Source}
-                        </p>
-                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                          <span>Type: {currentContent.Type}</span>
-                          <span>
-                            Duration: {formatDuration(currentContent.DurMin)}
-                          </span>
-                          <span>Status: {currentContent.ScheduleType}</span>
+                ) : currentContent && currentContent.length > 0 ? (
+                  <div className="space-y-6">
+                    {currentContent.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start space-x-4 border-b pb-4 last:border-0"
+                      >
+                        {getContentTypeIcon(item.Type)}
+                        <div className="flex-1">
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {item.Title}
+                          </h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {item.Source}
+                          </p>
+                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                            <span>Type: {item.Type}</span>
+                            <span>Duration: {formatDuration(item.DurMin)}</span>
+                            <span>Status: {item.ScheduleType}</span>
+                            <span>
+                              Start: {new Date(item.StartTime).toLocaleString()}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="text-center py-12">
@@ -317,7 +338,7 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                     <p className="mt-2 text-gray-500">
                       No content currently displayed
                     </p>
-                  </div> 
+                  </div>
                 )}
               </div>
             </div>
@@ -389,7 +410,7 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
             </div>
 
             {/* Scheduler Settings */}
-            {showSettings && (
+            {/* {showSettings && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                 <div className="p-6 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900">
@@ -435,7 +456,7 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                   </div>
                 </div>
               </div>
-            )}
+            )} */}
           </div>
         </div>
       </div>

@@ -4,6 +4,8 @@ const WindowHandlers = require("./windowHandlers.js");
 const path = require("path");
 const https = require("https");
 const DatabaseService = require("../database.js");
+const http = require("http");
+const ping = require("ping");
 
 class SchedulerHandlers {
   constructor() {
@@ -24,8 +26,34 @@ class SchedulerHandlers {
   setupHandlers() {
     // Start content scheduler for a specific screen
     ipcMain.handle("start-content-scheduler", async (event, config) => {
+      //need this
       try {
-        const { scrId, refreshInterval = 1 * 60 * 1000 } = config; // Default 5 minutes
+        const databaseService = new DatabaseService();
+        const refreshInfo = await databaseService.getNextRefreshTime(
+          config.scrId
+        );
+        let refreshTime = new Date(Date.now() + 1 * 60 * 1000);
+        if (!refreshInfo || !refreshInfo.NxtRefreshTime) {
+          console.warn("No next refresh time found, using default 1 minute");
+        }
+
+        if (refreshInfo.NxtRefreshTime != null) {
+          refreshTime = new Date(refreshInfo.NxtRefreshTime);
+        }
+
+        console.log("===================Refresh Time:", refreshTime);
+
+        const now = new Date();
+
+        console.log("===================Current Time:", now);
+
+        const refreshInterval = refreshTime.getTime() - now.getTime();
+        console.log(
+          "===================Calculated refresh interval (ms):",
+          refreshInterval
+        );
+
+        const { scrId } = config;
 
         // Stop existing scheduler if running
         this.stopSchedulerForScreen(scrId);
@@ -35,6 +63,8 @@ class SchedulerHandlers {
           scrId,
           refreshInterval
         );
+
+        console.log("Content after starting scheduler:", content);
 
         return {
           success: true,
@@ -49,39 +79,10 @@ class SchedulerHandlers {
         };
       }
     });
-    // ipcMain.handle("start-content-scheduler", async (event, config) => {
-    //   try {
-    //     if (!this.dbService) {
-    //       throw new Error("Database service not initialized");
-    //     }
-
-    //     const { scrId, refreshInterval = 1 * 60 * 1000 } = config; // Default 5 minutes
-
-    //     // Stop existing scheduler if running
-    //     this.stopSchedulerForScreen(scrId);
-
-    //     // Start new scheduler
-    //     const content = await this.startSchedulerForScreen(
-    //       scrId,
-    //       refreshInterval
-    //     );
-
-    //     return {
-    //       success: true,
-    //       message: `Content scheduler started for screen ${scrId}`,
-    //       data: content,
-    //     };
-    //   } catch (error) {
-    //     console.error("Error starting content scheduler:", error);
-    //     return {
-    //       success: false,
-    //       error: error.message,
-    //     };
-    //   }
-    // });
 
     // Stop content scheduler
     ipcMain.handle("stop-content-scheduler", async (event, scrId) => {
+      //need this
       try {
         this.stopSchedulerForScreen(scrId);
         return {
@@ -123,32 +124,33 @@ class SchedulerHandlers {
     });
 
     // Update refresh interval
-    ipcMain.handle(
-      "update-refresh-interval",
-      async (event, { scrId, interval }) => {
-        try {
-          // Update the refresh interval
-          this.refreshIntervals.set(scrId, interval);
+    // ipcMain.handle(
+    //   //need this
+    //   "update-refresh-interval",
+    //   async (event, { scrId, interval }) => {
+    //     try {
+    //       // Update the refresh interval
+    //       this.refreshIntervals.set(scrId, interval);
 
-          // Restart scheduler with new interval if it's running
-          if (this.schedulerStatus.get(scrId) === "running") {
-            this.stopSchedulerForScreen(scrId);
-            this.startSchedulerForScreen(scrId, interval);
-          }
+    //       // Restart scheduler with new interval if it's running
+    //       if (this.schedulerStatus.get(scrId) === "running") {
+    //         this.stopSchedulerForScreen(scrId);
+    //         this.startSchedulerForScreen(scrId, interval);
+    //       }
 
-          return {
-            success: true,
-            message: "Refresh interval updated",
-          };
-        } catch (error) {
-          console.error("Error updating refresh interval:", error);
-          return {
-            success: false,
-            error: error.message,
-          };
-        }
-      }
-    );
+    //       return {
+    //         success: true,
+    //         message: "Refresh interval updated",
+    //       };
+    //     } catch (error) {
+    //       console.error("Error updating refresh interval:", error);
+    //       return {
+    //         success: false,
+    //         error: error.message,
+    //       };
+    //     }
+    //   }
+    // );
 
     // Get current content for display
     ipcMain.handle("get-current-content-for-display", async (event, scrId) => {
@@ -262,26 +264,41 @@ class SchedulerHandlers {
     });
   }
 
-  checkInternetConnection(url = "https://www.google.com") {
-    return new Promise((resolve) => {
-      https
-        .get(url, (res) => resolve(res.statusCode === 200))
-        .on("error", () => resolve(false));
-    });
-  }
-  async checkDeviceStatus(scrId) {
+  async checkInternetConnection(ip = "142.251.222.196") {
     try {
-      if (!this.dbService) {
-        console.warn("Database service not available for device status check");
-        return { isActive: true }; // Default to active if can't check
+      const res = await ping.promise.probe(ip, { timeout: 3 });
+      if (res.alive) {
+        console.log(`Host ${ip} is reachable (ping success)`);
+        return true;
+      } else {
+        console.log(`Host ${ip} is not reachable (ping failed)`);
+        return false;
       }
+    } catch (err) {
+      console.error("Ping error:", err);
+      return false;
+    }
+  }
 
-      const deviceStatus = await this.dbService.getDeviceStatus(scrId);
-      console.log(`Device status for ${scrId}:`, deviceStatus);
+  async checkDeviceStatus(scrId) {
+    //need this
+    console.log(`=========Checking Device Status ${scrId}:`);
 
-      return deviceStatus.ScrStatus == "Deactive"
-        ? { isActive: false }
-        : { isActive: true };
+    try {
+      const databaseService = new DatabaseService();
+      // Get current content for the screen
+      const contentResult = await databaseService.getCurrentContentForDevice(
+        scrId
+      );
+
+      console.log(`=========Checking Device Status ${scrId}:`);
+
+      if (!contentResult || contentResult.length === 0) {
+        console.log(`No content found for ${scrId}, marking inactive.`);
+        return { isActive: false };
+      } else {
+        return { isActive: true };
+      }
     } catch (error) {
       console.error(`Error checking device status for ${scrId}:`, error);
       return { isActive: true }; // Default to active on error
@@ -299,15 +316,59 @@ class SchedulerHandlers {
       this.isOfflineMode.set(scrId, false);
 
       let lastOnlineStatus = null;
-      let lastDeviceStatus = null; // Track device activation status
+      let lastDeviceStatus = null;
 
+      // --- Online/Offline watcher (immediate response) ---
+      const onlineWatcher = setInterval(async () => {
+        try {
+          const online = await this.checkInternetConnection();
+
+          if (online !== lastOnlineStatus) {
+            if (!online) {
+              console.warn(
+                `[${scrId}] Lost internet - switching to offline content`
+              );
+              this.isOfflineMode.set(scrId, true);
+              this.currentPlayingContent = await this.getDefaultOfflineContent(
+                scrId
+              );
+            } else {
+              console.log(
+                `[${scrId}] Internet restored - reloading live content`
+              );
+              this.isOfflineMode.set(scrId, false);
+              console.log("checkAndUpdateContent called from onlineWatcher");
+              this.currentPlayingContent = await this.checkAndUpdateContent(
+                scrId,
+                true
+              );
+            }
+
+            if (this.windowHandlers) {
+              await this.windowHandlers.createDisplayWindow(
+                this.currentPlayingContent.Source
+              );
+            }
+
+            lastOnlineStatus = online;
+          }
+        } catch (err) {
+          console.error(`[${scrId}] Error in online watcher:`, err);
+        }
+      }, 1000 * 60);
+      this.schedulerIntervals.set(scrId + "_onlineWatcher", onlineWatcher);
+
+      // --- Main content scheduler ---
       const interval = setInterval(async () => {
         try {
+          console.log(
+            `[${scrId}] Refreshing... ${new Date().toLocaleTimeString()}`
+          );
+
           // Check device status first
           const deviceStatus = await this.checkDeviceStatus(scrId);
           const isDeviceActive = deviceStatus && deviceStatus.isActive;
 
-          // If device is deactivated
           if (!isDeviceActive) {
             if (lastDeviceStatus !== false) {
               console.warn(
@@ -323,72 +384,42 @@ class SchedulerHandlers {
               }
             }
             lastDeviceStatus = false;
-            return; // Skip content checking if device is deactivated
+            return; // skip content update if device is deactivated
           }
 
-          // Device is active - proceed with normal content logic
-          const online = await this.checkInternetConnection();
-
-          if (!online) {
-            // Going offline or staying offline
-            if (lastOnlineStatus !== false) {
-              console.warn(
-                `[${scrId}] Lost internet switching to fallback content.`
-              );
-              this.isOfflineMode.set(scrId, true);
-              this.currentPlayingContent = await this.getDefaultOfflineContent(
-                scrId
-              );
-
-              if (this.windowHandlers) {
-                await this.windowHandlers.createDisplayWindow(
-                  this.currentPlayingContent.Source
-                );
-              }
-            }
-            lastOnlineStatus = false;
-            lastDeviceStatus = true;
-            return;
-          }
-
-          // Online and device is active
+          // Device active
           const wasOffline = this.isOfflineMode.get(scrId);
           const wasDeactivated = lastDeviceStatus === false;
 
-          if (lastOnlineStatus === false || wasOffline || wasDeactivated) {
+          if (wasOffline || wasDeactivated) {
             console.log(
-              `[${scrId}] Internet restored or device reactivated — forcing reload of live content.`
+              `[${scrId}] Device reactivated or came online — forcing reload of live content`
             );
             this.isOfflineMode.set(scrId, false);
-            // Force update when coming back online or device reactivated
             this.currentPlayingContent = await this.checkAndUpdateContent(
               scrId,
               true
             );
           } else {
             // Normal online operation
+            console.log("checkAndUpdateContent called from deactive");
             this.currentPlayingContent = await this.checkAndUpdateContent(
               scrId,
-              false
+              true
             );
           }
 
-          lastOnlineStatus = true;
           lastDeviceStatus = true;
         } catch (error) {
-          console.error(
-            `Error in scheduler interval for screen ${scrId}:`,
-            error
-          );
+          console.error(`[${scrId}] Error in scheduler interval:`, error);
         }
       }, refreshInterval);
 
       this.schedulerIntervals.set(scrId, interval);
 
-      // Initial run
+      // --- Initial startup check ---
       (async () => {
         try {
-          // Check device status first
           const deviceStatus = await this.checkDeviceStatus(scrId);
           const isDeviceActive = deviceStatus && deviceStatus.isActive;
 
@@ -406,11 +437,10 @@ class SchedulerHandlers {
             return;
           }
 
-          // Device is active - check internet
           const online = await this.checkInternetConnection();
           if (!online) {
             console.warn(
-              `[${scrId}] No internet at startup — using fallback content.`
+              `[${scrId}] No internet at startup — using fallback content`
             );
             this.isOfflineMode.set(scrId, true);
             this.currentPlayingContent = await this.getDefaultOfflineContent(
@@ -428,23 +458,21 @@ class SchedulerHandlers {
             return;
           }
 
-          // Device is active and online
+          // Device active and online
           this.isOfflineMode.set(scrId, false);
+          console.log("checkAndUpdateContent called from initial check");
           this.currentPlayingContent = await this.checkAndUpdateContent(
             scrId,
-            false
+            true
           );
           lastOnlineStatus = true;
           lastDeviceStatus = true;
-          return this.currentPlayingContent;
         } catch (error) {
-          console.error(`Error in initial scheduler run for ${scrId}:`, error);
+          console.error(`[${scrId}] Error in initial scheduler run:`, error);
         }
       })();
 
-      console.log(
-        `Content scheduler started successfully for screen ${this.currentPlayingContent}`
-      );
+      console.log(`[${scrId}] Content scheduler started successfully`);
       return this.currentPlayingContent;
     } catch (error) {
       console.error(`Error starting scheduler for screen ${scrId}:`, error);
@@ -453,6 +481,7 @@ class SchedulerHandlers {
   }
 
   getDefaultOfflineContent(scrId) {
+    //need this
     const offlinePagePath = path.join(__dirname, "assets", "offline.html");
 
     return {
@@ -464,10 +493,11 @@ class SchedulerHandlers {
     };
   }
   getDeviceDeactivatedContent(scrId) {
+    //need this
     const deactivatedPagePath = path.join(
       __dirname,
       "assets",
-      "deactivated.html"
+      "DeactivePg.html"
     );
 
     return {
@@ -480,6 +510,7 @@ class SchedulerHandlers {
   }
 
   stopSchedulerForScreen(scrId) {
+    //need this
     try {
       console.log(`Stopping content scheduler for screen ${scrId}`);
 
@@ -500,179 +531,150 @@ class SchedulerHandlers {
     }
   }
 
-  // async checkAndUpdateContent(scrId) {
-  //   console.log(`================Checking content for screen ${scrId}`);
-  //   const currentContentDuration = null;
-  //   const currentContentScheduleType = null;
-
-  //   try {
-  //     if (!this.dbService) {
-  //       console.warn("Database service not available for content check");
-  //       return;
-  //     }
-
-  //     // Get current content for the screen
-  //     const currentContent = await this.dbService.getCurrentContentForDevice(
-  //       scrId
-  //     );
-
-  //     console.log(
-  //       `Current planning content for screen ${scrId}:`,
-  //       this.currentPlaingContent
-  //     );
-
-  //     if (currentContent) {
-  //       console.log(`Current content for screen ${scrId}:`, currentContent);
-
-  //       const prevContent = this.currentPlaingContent;
-
-  //       currentContentDuration = currentContent.DurMin;
-  //       currentContentScheduleType = currentContent.ScheduleType;
-
-  //       if(currentContentScheduleType === "Default") {
-  //         const startTime = new Date();
-
-  //       }
-
-  //       // Check if content changed (by Id)
-  //       if (!prevContent || prevContent.Id !== currentContent.Id) {
-  //         this.currentPlaingContent = currentContent;
-
-  //         // Determine display URL
-  //         let displayUrl = currentContent.Source;
-
-  //         if (currentContent.Type.toLowerCase() === "url") {
-  //           // If it's a YouTube embed or similar, append autoplay & mute if not present
-  //           if (displayUrl.includes("youtube.com/embed/")) {
-  //             if (!displayUrl.includes("autoplay=1")) {
-  //               displayUrl += displayUrl.includes("?")
-  //                 ? "&autoplay=1&mute=1"
-  //                 : "?autoplay=1&mute=1";
-  //             }
-  //           }
-  //         }
-
-  //         // Use your WindowHandlers instance to open/update the display window
-  //         if (this.windowHandlers) {
-  //           this.windowHandlers.createDisplayWindow(displayUrl);
-  //           console.log(`Display window updated with URL: ${displayUrl}`);
-  //         } else {
-  //           console.error("WindowHandlers instance not set");
-  //         }
-  //       } else {
-  //         console.log("Content unchanged, no update sent.");
-  //       }
-
-  //       // Update device status
-  //       // await this.dbService.updateDeviceStatus(scrId, true);
-
-  //       return currentContent;
-  //     } else {
-  //       console.log(`No content available for screen ${scrId}`);
-  //     }
-  //   } catch (error) {
-  //     console.error(`Error checking content for screen ${scrId}:`, error);
-  //   }
-  // }
-
-  async checkAndUpdateContent(scrId, forceUpdate = false) {
-    console.log(`================Checking content for screen ${scrId}`);
+  async checkAndUpdateContent(scrId, forceUpdate) {
+    console.log(`================ Checking content for screen ${scrId}`);
 
     try {
-      const databaseService = new DatabaseService();
-      // Get current content for the screen
-      const contentResult = await databaseService.getCurrentContentForDevice(
-        scrId
-      );
-
-      console.log(
-        `Current playing content for screen ${scrId}:`,
-        this.currentPlayingContent
-      );
-
-      if (contentResult) {
-        let currentContent = null;
-        let shouldUpdate = forceUpdate; // Start with forceUpdate flag
-
-        // Handle different content types
-        if (contentResult.type === "DEFAULT_POOL") {
-          // Check if we need to select a new default content
-          const needsDefaultUpdate = this.shouldUpdateDefaultContent(
-            contentResult.items
-          );
-          shouldUpdate = shouldUpdate || needsDefaultUpdate;
-
-          if (needsDefaultUpdate) {
-            // Select random default content
-            const randomIndex = Math.floor(
-              Math.random() * contentResult.items.length
-            );
-            currentContent = contentResult.items[randomIndex];
-            // Set start time for default content
-            currentContent.actualStartTime = new Date();
-          } else {
-            // Keep current content
-            currentContent = this.currentPlayingContent;
-          }
-        } else {
-          // Live or Schedule content
-          currentContent = contentResult;
-          const prevContent = this.currentPlayingContent;
-          shouldUpdate =
-            shouldUpdate ||
-            !prevContent ||
-            prevContent.Source !== currentContent.Source;
-        }
-
-        if (shouldUpdate && currentContent) {
-          console.log(`Updating content for screen ${scrId}:`, currentContent);
-
-          this.currentPlayingContent = currentContent;
-
-          // Determine display URL
-          let displayUrl = currentContent.Source;
-
-          if (currentContent.Type.toLowerCase() === "url") {
-            // If it's a YouTube embed or similar, append autoplay & mute if not present
-            if (displayUrl.includes("youtube.com/embed/")) {
-              if (!displayUrl.includes("autoplay=1")) {
-                displayUrl += displayUrl.includes("?")
-                  ? "&autoplay=1&mute=1"
-                  : "?autoplay=1&mute=1";
-              }
-            }
-          }
-
-          // Use your WindowHandlers instance to open/update the display window
-          if (this.windowHandlers) {
-            await this.windowHandlers.createDisplayWindow(displayUrl);
-            console.log(`Display window updated with URL: ${displayUrl}`);
-          } else {
-            console.error("WindowHandlers instance not set");
-          }
-        } else {
-          console.log("Content unchanged, no update sent.");
-        }
-
-        return currentContent;
-      } else {
-        console.log(`No content available for screen ${scrId}`);
+      if (this.isOfflineMode.get(scrId)) {
+        console.log(
+          `[${scrId}] Skipping checkAndUpdateContent — offline mode active`
+        );
+        return this.currentPlayingContent; // keep showing offline page
       }
+      const now = new Date();
+
+      // Fetch content list from DB if not cached or forced
+      if (!this.cachedContentList || forceUpdate) {
+        console.log(`Fetching content list from DB for screen ${scrId}`);
+        this.cachedContentList = null;
+        this.defaultIndex = 0;
+        const databaseService = new DatabaseService();
+        this.cachedContentList = await databaseService.getAllContetent(scrId);
+
+        if (!this.cachedContentList || this.cachedContentList.length === 0) {
+          console.log(`No content available for screen ${scrId}`);
+          return null;
+        }
+      } else {
+        console.log(`Using cached content list for screen ${scrId}`);
+      }
+
+      const contentList = this.cachedContentList;
+      console.log("Full Content List:", contentList);
+
+      // Separate scheduled and default content
+      const scheduledItems = contentList
+        .filter((c) => c.ScheduleType === "Scheduled")
+        .map((item) => ({
+          ...item,
+          start: new Date(item.StartTime),
+          end: new Date(
+            new Date(item.StartTime).getTime() + (item.DurMin || 1) * 60 * 1000
+          ),
+        }))
+        .sort((a, b) => a.start - b.start);
+
+      console.log("Scheduled Items:", scheduledItems);
+
+      const defaultItems = contentList
+        .filter((c) => c.ScheduleType === "Default")
+        .sort((a, b) => {
+          if (a.srtOrd != null && b.srtOrd != null) {
+            return a.srtOrd - b.srtOrd;
+          }
+          return new Date(a.CreatedAt) - new Date(b.CreatedAt);
+        });
+
+      // Pick scheduled content if active
+      const activeScheduled = scheduledItems.find(
+        (item) => now >= item.start && now <= item.end
+      );
+
+      let nextContent = null;
+
+      if (activeScheduled) {
+        nextContent = activeScheduled; // scheduled takes priority
+      } else if (defaultItems.length > 0) {
+        if (!this.defaultIndex || this.defaultIndex >= defaultItems.length) {
+          this.defaultIndex = 0;
+        }
+        nextContent = defaultItems[this.defaultIndex];
+        this.defaultIndex++;
+      }
+
+      if (!nextContent) {
+        console.log("No valid content to display right now.");
+        return null;
+      }
+
+      // Update display if content changed
+      const prevContent = this.currentPlayingContent;
+      const shouldUpdate =
+        forceUpdate ||
+        !prevContent ||
+        prevContent.Source !== nextContent.Source;
+
+      if (shouldUpdate) {
+        console.log(`Updating content for screen ${scrId}:`, nextContent);
+        this.currentPlayingContent = nextContent;
+
+        // Build display URL
+        let displayUrl = nextContent.Source;
+        if (nextContent.Type.toLowerCase() === "url") {
+          if (
+            displayUrl.includes("youtube.com/embed/") &&
+            !displayUrl.includes("autoplay=1")
+          ) {
+            displayUrl += displayUrl.includes("?")
+              ? "&autoplay=1&mute=1"
+              : "?autoplay=1&mute=1";
+          }
+        }
+
+        if (this.windowHandlers) {
+          await this.windowHandlers.createDisplayWindow(displayUrl);
+          console.log(`Display window updated with URL: ${displayUrl}`);
+        } else {
+          console.error("WindowHandlers instance not set");
+        }
+      } else {
+        console.log("Content unchanged, no update sent.");
+      }
+
+      // ✅ Calculate next check dynamically
+      let nextCheckTime = now.getTime() + (nextContent.DurMin || 1) * 60 * 1000; // default fallback
+
+      scheduledItems.forEach((item) => {
+        if (
+          item.start.getTime() > now.getTime() &&
+          item.start.getTime() < nextCheckTime
+        ) {
+          nextCheckTime = item.start.getTime(); // schedule check right before next scheduled start
+        }
+      });
+
+      const nextCheckDelay = Math.max(nextCheckTime - now.getTime(), 1000); // at least 1 second
+      clearTimeout(this.nextCheckTimer);
+      this.nextCheckTimer = setTimeout(() => {
+        this.checkAndUpdateContent(scrId, false); // re-check all content
+      }, nextCheckDelay);
+
+      console.log(`Next check scheduled in ${nextCheckDelay / 1000} seconds`);
+
+      return nextContent;
     } catch (error) {
       console.error(`Error checking content for screen ${scrId}:`, error);
+      return null;
     }
   }
+
   // async checkAndUpdateContent(scrId, forceUpdate = false) {
   //   console.log(`================Checking content for screen ${scrId}`);
 
   //   try {
-  //     if (!this.dbService) {
-  //       console.warn("Database service not available for content check");
-  //       return;
-  //     }
-
+  //     const databaseService = new DatabaseService();
   //     // Get current content for the screen
-  //     const contentResult = await this.dbService.getCurrentContentForDevice(
+  //     const contentResult = await databaseService.getCurrentContentForDevice(
   //       scrId
   //     );
 
@@ -712,7 +714,7 @@ class SchedulerHandlers {
   //         shouldUpdate =
   //           shouldUpdate ||
   //           !prevContent ||
-  //           prevContent.Id !== currentContent.Id;
+  //           prevContent.Source !== currentContent.Source;
   //       }
 
   //       if (shouldUpdate && currentContent) {
@@ -753,7 +755,6 @@ class SchedulerHandlers {
   //     console.error(`Error checking content for screen ${scrId}:`, error);
   //   }
   // }
-
   // Helper method to determine if default content should be updated
   shouldUpdateDefaultContent(availableDefaultItems) {
     const currentContent = this.currentPlayingContent;

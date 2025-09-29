@@ -14,7 +14,8 @@ module.exports = {
     new CopyWebpackPlugin({
       patterns: [
         { from: "assets/offline.html", to: "assets" },
-        { from: "assets/deactivated.html", to: "assets" },
+        { from: "assets/DeactivePg.html", to: "assets" },
+        { from: "assets/mainLogo.png", to: "assets" },
       ],
     }),
   ],

@@ -16,14 +16,14 @@ let fullscreenWindow;
 const credFilePath = path.join(app.getPath("userData"), "credentials.json");
 const defaultCreds = {
   username: "admin",
-  password: "mypassword123"
+  password: "mypassword123",
 };
 function initCredentials() {
   if (!fs.existsSync(credFilePath)) {
     const hashedPassword = bcrypt.hashSync(defaultCreds.password, 10);
     const data = {
       username: defaultCreds.username,
-      passwordHash: hashedPassword
+      passwordHash: hashedPassword,
     };
     fs.writeFileSync(credFilePath, JSON.stringify(data, null, 2));
     console.log("Credentials file created:", credFilePath);
@@ -73,6 +73,7 @@ const createWindow = () => {
       contextIsolation: true,
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
     },
+    devTools: true,
   });
 
   // Load the index.html of the app.
@@ -80,10 +81,14 @@ const createWindow = () => {
     mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
   }
 
-  // Open the DevTools in development
-  if (process.env.NODE_ENV === "development") {
-    mainWindow.webContents.openDevTools();
-  }
+  // mainWindow.webContents.on("before-input-event", (event, input) => {
+  //   if (
+  //     (input.control && input.shift && input.key.toLowerCase() === "i") || // Ctrl+Shift+I
+  //     input.key.toLowerCase() === "f12"
+  //   ) {
+  //     event.preventDefault();
+  //   }
+  // });
 
   // Initialize IPC handlers and pass the main window
   ipcHandlers = new IPCHandlers();

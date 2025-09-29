@@ -12,6 +12,7 @@ class DeviceHandlers {
 
   registerHandlers() {
     ipcMain.handle("get-mac-address", this.getMacAddressHandler.bind(this));
+    ipcMain.handle("get-ipv4-address", this.getIpv4AddressHandler.bind(this));
     ipcMain.handle(
       "get-all-mac-addresses",
       this.getAllMacAddressesHandler.bind(this)
@@ -30,14 +31,17 @@ class DeviceHandlers {
       "check-device-exists",
       this.checkDeviceExistsHandler.bind(this)
     );
-    ipcMain.handle("get-device-by-mac", this.getDeviceByMacHandler.bind(this));
+    ipcMain.handle("get-device-by-mac", this.getDeviceByMacHandler.bind(this)); //need this
     ipcMain.handle("get-screenids", this.getScreenIdsHandler.bind(this));
     ipcMain.handle("get-locations", this.getLocationsHandler.bind(this));
-    ipcMain.handle("get-plantcodes", this.getPlantCodeHandler.bind(this));
+    ipcMain.handle("get-plantcodes", this.getPlantCodeHandler.bind(this)); //need this
   }
 
   getMacAddressHandler() {
     return this.networkUtils.getMacAddress();
+  }
+  getIpv4AddressHandler() {
+    return this.networkUtils.getIPv4Address();
   }
 
   getAllMacAddressesHandler() {
@@ -85,42 +89,32 @@ class DeviceHandlers {
     }
   }
 
-  async checkDeviceExistsHandler(event, macAddress) {
+  async checkDeviceExistsHandler() {
     try {
-      if (!this.dbService) {
-        throw new Error("Database service not initialized");
+      const networkUtils = new NetworkUtils();
+      const databaseService = new DatabaseService();
+
+      const macAddress = networkUtils.getMacAddress();
+
+      const device = await databaseService.getDeviceByMacAddress(macAddress);
+      if (device != null) {
+        return true;
       }
 
-      const exists = await this.dbService.checkDeviceExists(macAddress);
-      return { success: true, exists };
+      return false;
     } catch (error) {
       console.error("Failed to check device existence:", error);
       return { success: false, error: error.message };
     }
   }
 
-  // async getDeviceByMacHandler(event, macAddress) {
-  //   try {
-  //     if (!this.dbService) {
-  //       throw new Error("Database service not initialized");
-  //     }
-
-  //     const device = await this.dbService.getDeviceByMacAddress(macAddress);
-  //     return { success: true, device };
-  //   } catch (error) {
-  //     console.error("Failed to get device by MAC:", error);
-  //     return { success: false, error: error.message };
-  //   }
-  // }
-
-
   async getDeviceByMacHandler(event, macAddress) {
+    //need this
     try {
-    
       const databaseService = new DatabaseService(); // now it's an instance
 
       const device = await databaseService.getDeviceByMacAddress(macAddress);
-      console.log("deviceData from soap:",device);
+      console.log("deviceData from soap:", device);
       return { success: true, device };
     } catch (error) {
       console.error("Failed to get device by MAC:", error);
@@ -141,20 +135,9 @@ class DeviceHandlers {
       return { success: false, error: error.message };
     }
   }
-  // async getPlantCodeHandler(event) {
-  //   try {
-  //     if (!this.dbService) {
-  //       throw new Error("Database service not initialized");
-  //     }
 
-  //     const plantCodes = await this.dbService.getPlantCodes();
-  //     return { success: true, data: plantCodes };
-  //   } catch (error) {
-  //     console.error("Failed to get plantCodes:", error);
-  //     return { success: false, error: error.message };
-  //   }
-  // }
   async getPlantCodeHandler(event) {
+    //need this
     try {
       const databaseService = new DatabaseService(); // now it's an instance
       const plantCodes = await databaseService.getPlantCodes();

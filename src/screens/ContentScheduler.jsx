@@ -14,9 +14,6 @@ import {
   Image,
   Video,
   Globe,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
   Loader2,
 } from "lucide-react";
 

@@ -7,10 +7,11 @@ import {
   Settings,
   Database,
   Monitor,
-  ArrowLeft,
   MapPin,
+  Clock,
 } from "lucide-react";
 import Login from "./Login.jsx";
+import LocalSchedular from "./LocalSchedular.jsx";
 
 export default function SetupScreen({ onNavigate, onConfigSaved }) {
   const [deviceConfig, setDeviceConfig] = useState({
@@ -20,7 +21,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
     scrLoc: "",
     ipAddress: "",
     createdBy: "",
-    scrStatus: "SC1",
+    scrStatus: "Active",
     plantCode: "",
   });
 
@@ -31,29 +32,34 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
   const [status, setStatus] = useState({ type: "", message: "" });
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
-
-
+  const [showSchedulePopup, setShowSchedulePopup] = useState(false);
 
   useEffect(() => {
     const init = async () => {
       try {
         setLoading(true);
-  
-        // 1️⃣ Load MAC Address
+
+        // Load MAC Address
         const macResult = await window.electronAPI.getMacAddress();
+        const ipResult = await window.electronAPI.getIpv4Address();
         console.log("MAC Address:", macResult);
-  
+        console.log("IP Address:", ipResult);
+
         if (!macResult) {
           throw new Error("MAC Address not found");
         }
-  
+
         // Update deviceConfig with MAC immediately
-        setDeviceConfig((prev) => ({ ...prev, macAddress: macResult }));
-  
-        // 2️⃣ Fetch device info using the MAC
+        setDeviceConfig((prev) => ({
+          ...prev,
+          macAddress: macResult,
+          ipAddress: ipResult,
+        }));
+
+        // Fetch device info using the MAC
         const deviceResult = await window.electronAPI.getDeviceByMac(macResult);
         console.log("Device info:", deviceResult);
-  
+
         if (deviceResult?.device) {
           const device = deviceResult.device;
           setDeviceConfig((prev) => ({
@@ -62,21 +68,19 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
             plantId: device.PlantCode,
             scrName: device.ScrName,
             scrLoc: device.ScrLoc,
-            ipAddress: device.IPAddress,
+            // ipAddress: device.IPAddress,
             createdBy: device.CreatedBy,
             plantCode: device.PlantCode,
           }));
         }
-  
-        // 3️⃣ Load plant codes (SOAP call)
+
+        // Load plant codes (SOAP call)
         const plantcodeResults = await window.electronAPI.getPlantCodes();
         console.log("Plant codes:", plantcodeResults);
-  
-        setPlantCodeIds(
-          plantcodeResults?.success ? plantcodeResults.data : []
-        );
-  
-        // 4️⃣ Set status for UI
+
+        setPlantCodeIds(plantcodeResults?.success ? plantcodeResults.data : []);
+
+        // Set status for UI
         setStatus({
           type: "info",
           message: "Device setup ready. Fill details and save.",
@@ -92,10 +96,9 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
         setLoading(false);
       }
     };
-  
+
     init();
   }, []);
-  
 
   const handleTestConnection = () => {
     // Save the action we want to do after login
@@ -117,7 +120,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
     setSaving(true);
     setStatus({ type: "", message: "" });
 
-    console.log("device config for soap: ",deviceConfig)
+    console.log("device config for soap: ", deviceConfig);
 
     try {
       const result = await window.electronAPI.saveDeviceConfig(deviceConfig);
@@ -200,7 +203,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
             <Database className="w-6 h-6 text-blue-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">
-            Device Setup (SOAP)
+            Device Setup
           </h2>
         </div>
 
@@ -281,7 +284,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
               </div>
 
               {/* Created By */}
-              <div>
+              {/* <div>
                 <label className="block text-sm font-semibold mb-1">
                   Created By
                 </label>
@@ -292,7 +295,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
                   onChange={handleDeviceChange}
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
                 />
-              </div>
+              </div> */}
 
               {/* Plant */}
               <div>
@@ -328,6 +331,16 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
           </div>
         </div>
 
+        {/* <div className="p-6 flex justify-end">
+          <button
+            onClick={() => setShowSchedulePopup(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center space-x-2"
+          >
+            <Clock className="w-4 h-4" />
+            <span>Setup Local Schedule</span>
+          </button>
+        </div> */}
+
         {/* Actions */}
         <div className="p-6 border-t border-gray-100 bg-gray-50">
           <div className="flex space-x-3">
@@ -358,6 +371,16 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
           onSuccess={() => {
             if (pendingAction) pendingAction();
           }}
+        />
+      )}
+      {showSchedulePopup && (
+        <LocalSchedular
+          onNavigate={onNavigate}
+          onClose={() => setShowLoginModal(false)}
+
+          // onSuccess={() => {
+          //   if (pendingAction) pendingAction();
+          // }}
         />
       )}
     </div>

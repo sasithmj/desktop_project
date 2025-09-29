@@ -35,12 +35,11 @@ class ContentHandlers {
 
     // Get current content for a device
     ipcMain.handle("get-current-content", async (event, scrId) => {
+      //need this
       console.log("Getting content........");
       try {
-        const databaseService=new DatabaseService();
-        const currentContent = await databaseService.getCurrentContentForDevice(
-          scrId
-        );
+        const databaseService = new DatabaseService();
+        const currentContent = await databaseService.getAllContetent(scrId);
         console.log("Current content for screen:", scrId, currentContent);
         return {
           success: true,
@@ -54,29 +53,6 @@ class ContentHandlers {
         };
       }
     });
-    // // Get current content for a device
-    // ipcMain.handle("get-current-content", async (event, scrId) => {
-    //   try {
-    //     if (!this.dbService) {
-    //       throw new Error("Database service not initialized");
-    //     }
-
-    //     const currentContent = await this.dbService.getCurrentContentForDevice(
-    //       scrId
-    //     );
-    //     console.log("Current content for screen:", scrId, currentContent);
-    //     return {
-    //       success: true,
-    //       data: currentContent,
-    //     };
-    //   } catch (error) {
-    //     console.error("Error getting current content:", error);
-    //     return {
-    //       success: false,
-    //       error: error.message,
-    //     };
-    //   }
-    // });
 
     // Add new content item
     ipcMain.handle("add-content-item", async (event, contentData) => {
@@ -347,54 +323,6 @@ class ContentHandlers {
         };
       }
     });
-
-    // Content scheduling validation
-    // ipcMain.handle(
-    //   "validate-content-schedule",
-    //   async (event, { scrId, startTime, duration }) => {
-    //     try {
-    //       if (!this.dbService) {
-    //         throw new Error("Database service not initialized");
-    //       }
-
-    //       // Get all scheduled content for the screen
-    //       const scheduledContent = await this.dbService.getScheduledContent(
-    //         scrId
-    //       );
-
-    //       const start = new Date(startTime);
-    //       const end = new Date(start.getTime() + duration * 60 * 1000); // Convert minutes to milliseconds
-
-    //       // Check for conflicts
-    //       const conflicts = scheduledContent.filter((item) => {
-    //         const itemStart = new Date(item.StartTime);
-    //         const itemEnd = new Date(
-    //           itemStart.getTime() + item.DurMin * 60 * 1000
-    //         );
-
-    //         return (
-    //           (start < itemEnd && end > itemStart) || // Overlap
-    //           (itemStart < end && itemEnd > start) // Reverse overlap
-    //         );
-    //       });
-
-    //       return {
-    //         success: true,
-    //         data: {
-    //           hasConflicts: conflicts.length > 0,
-    //           conflicts: conflicts,
-    //           isValid: conflicts.length === 0,
-    //         },
-    //       };
-    //     } catch (error) {
-    //       console.error("Error validating content schedule:", error);
-    //       return {
-    //         success: false,
-    //         error: error.message,
-    //       };
-    //     }
-    //   }
-    // );
   }
 }
 
