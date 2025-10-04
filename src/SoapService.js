@@ -2,11 +2,21 @@ const axios = require("axios");
 
 class SoapService {
   constructor() {
-    // this.endpoint = "http://10.76.152.20/display/api/app_data.asmx";
-    this.endpoint = "http://bdxdisplayapp.somee.com/api/app_data.asmx";
+    this.endpoint = "http://10.76.152.20/display/api/app_data.asmx";
+    // this.endpoint = "http://bdxdisplayapp.somee.com/api/app_data.asmx";
     this.apiKey = "yFlMjSup.IbHOCjyRiTb8QOO9Ltsbr";
     this.skey =
       "9c4572c4e6ce5ac08292f1b8affad147794d8a9ad55b2b3f08ae2fa15868ec5f";
+  }
+
+  decodeXmlEntities(str) {
+    if (!str) return str;
+    return str
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
   }
 
   // Generic SOAP request sender with detailed debugging
@@ -43,15 +53,17 @@ class SoapService {
   }
 
   extractResult(soapResponse, tagName) {
-    // Handle both CDATA and plain text responses
     const regex = new RegExp(
       `<${tagName}><!\\[CDATA\\[(.*?)\\]\\]></${tagName}>|<${tagName}>(.*?)</${tagName}>`,
       "s"
     );
     const match = soapResponse.match(regex);
     if (match) {
-      const content = match[1] || match[2]; // CDATA content is in group 1, plain text in group 2
+      let content = match[1] || match[2];
       if (content) {
+        // Always decode XML entities here
+        content = this.decodeXmlEntities(content);
+
         try {
           return JSON.parse(content);
         } catch {

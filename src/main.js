@@ -72,6 +72,7 @@ const createWindow = () => {
       nodeIntegration: false,
       contextIsolation: true,
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      // webSecurity: false,
     },
     devTools: true,
   });

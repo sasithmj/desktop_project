@@ -264,7 +264,22 @@ class SchedulerHandlers {
     });
   }
 
-  async checkInternetConnection(ip = "142.251.222.196") {
+  // async checkInternetConnection(ip = "142.250.67.36") {
+  //   try {
+  //     const res = await ping.promise.probe(ip, { timeout: 3 });
+  //     if (res.alive) {
+  //       console.log(`Host ${ip} is reachable (ping success)`);
+  //       return true;
+  //     } else {
+  //       console.log(`Host ${ip} is not reachable (ping failed)`);
+  //       return false;
+  //     }
+  //   } catch (err) {
+  //     console.error("Ping error:", err);
+  //     return false;
+  //   }
+  // }
+  async checkInternetConnection(ip = "10.76.152.20") {
     try {
       const res = await ping.promise.probe(ip, { timeout: 3 });
       if (res.alive) {
