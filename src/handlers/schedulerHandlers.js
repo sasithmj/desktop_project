@@ -279,7 +279,7 @@ class SchedulerHandlers {
   //     return false;
   //   }
   // }
-  async checkInternetConnection(ip = "10.76.152.20") {
+  async checkInternetConnection(ip = "142.251.43.36") {
     try {
       const res = await ping.promise.probe(ip, { timeout: 3 });
       if (res.alive) {

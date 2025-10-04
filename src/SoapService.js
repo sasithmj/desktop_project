@@ -2,8 +2,8 @@ const axios = require("axios");
 
 class SoapService {
   constructor() {
-    this.endpoint = "http://10.76.152.20/display/api/app_data.asmx";
-    // this.endpoint = "http://bdxdisplayapp.somee.com/api/app_data.asmx";
+    // this.endpoint = "http://10.76.152.20/display/api/app_data.asmx";
+    this.endpoint = "http://bdxdisplayapp.somee.com/api/app_data.asmx";
     this.apiKey = "yFlMjSup.IbHOCjyRiTb8QOO9Ltsbr";
     this.skey =
       "9c4572c4e6ce5ac08292f1b8affad147794d8a9ad55b2b3f08ae2fa15868ec5f";
