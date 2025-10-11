@@ -87,7 +87,10 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
         }
         if (result.success) {
           // setCurrentContent(result.data);
-          !licenseExpired ? startContentMonitoring(result.data) : null; // pass content
+          console.log("licenseExpired:", licenseExpired);
+          !licenseExpired
+            ? startContentMonitoring(result.data)
+            : console.log("licenseExpired:", licenseExpired); // pass content
         }
       }
     } catch (error) {
@@ -269,7 +272,7 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                 </button>
               </div>
               <CountdownTimer
-                expiryDate="2025-10-10T23:59:00"
+                expiryDate="2025-10-12T23:59:00"
                 onExpire={() => setLicenseExpired(true)}
               />
               {/* Settings Button */}
