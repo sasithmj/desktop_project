@@ -34,7 +34,7 @@ export default function App() {
           console.log("Configuration missing");
           setConfigExists(false);
           setCurrentScreen("setup");
-        } 
+        }
       } else {
         console.log("Configuration missing in db");
         setConfigExists(false);

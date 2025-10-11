@@ -22,6 +22,7 @@ class SchedulerHandlers {
     this.isOfflineMode = new Map(); // Track offline state per screen
     this.contentHashMap = new Map(); // Track content hash to detect changes
     this.isUpdatingWindow = new Map(); // Prevent concurrent window updates
+    this.lastCheckTime = new Map(); // Track last check time to prevent rapid calls
     this.setupHandlers();
   }
 
@@ -30,39 +31,64 @@ class SchedulerHandlers {
   }
 
   setupHandlers() {
+    // Remove any existing handlers to prevent duplicates
+    ipcMain.removeHandler("start-content-scheduler");
+    ipcMain.removeHandler("stop-content-scheduler");
+    ipcMain.removeHandler("get-scheduler-status");
+    ipcMain.removeHandler("get-current-content-for-display");
+    ipcMain.removeHandler("validate-content-schedule");
+    ipcMain.removeHandler("get-scheduler-statistics");
+
     // Start content scheduler for a specific screen
     ipcMain.handle("start-content-scheduler", async (event, config) => {
       try {
-        const databaseService = new DatabaseService();
-        const refreshInfo = await databaseService.getNextRefreshTime(
-          config.scrId
-        );
-        let refreshTime = new Date(Date.now() + 1 * 60 * 1000);
-
-        if (!refreshInfo || !refreshInfo.NxtRefreshTime) {
-          console.warn("No next refresh time found, using default 1 minute");
-        }
-
-        if (refreshInfo.NxtRefreshTime != null) {
-          refreshTime = new Date(refreshInfo.NxtRefreshTime);
-        }
-
-        console.log("===================Refresh Time:", refreshTime);
-        const now = new Date();
-        console.log("===================Current Time:", now);
-
-        const refreshInterval = refreshTime.getTime() - now.getTime();
-        console.log(
-          "===================Calculated refresh interval (ms):",
-          refreshInterval
-        );
-
         const { scrId } = config;
+
+        // Check internet connection status
+        const online = await this.checkInternetConnection();
+        console.log(
+          `[${scrId}] Internet status: ${online ? "Online ✅" : "Offline ❌"}`
+        );
 
         // Stop existing scheduler if running
         this.stopSchedulerForScreen(scrId);
 
-        // Start new scheduler with refresh interval and continuous DB monitoring
+        let refreshInterval = 1 * 60 * 1000; // Default 1 minute
+
+        if (online) {
+          // Try to get refresh time from database
+          try {
+            const databaseService = new DatabaseService();
+            const refreshInfo = await databaseService.getNextRefreshTime(scrId);
+
+            if (refreshInfo && refreshInfo.NxtRefreshTime) {
+              const refreshTime = new Date(refreshInfo.NxtRefreshTime);
+              const now = new Date();
+              refreshInterval = refreshTime.getTime() - now.getTime();
+
+              console.log("===================Refresh Time:", refreshTime);
+              console.log("===================Current Time:", now);
+              console.log(
+                "===================Calculated refresh interval (ms):",
+                refreshInterval
+              );
+            } else {
+              console.warn(
+                "No next refresh time found, using default 1 minute"
+              );
+            }
+          } catch (dbError) {
+            console.error("Error fetching refresh time:", dbError);
+            console.warn("Using default refresh interval due to DB error");
+          }
+        } else {
+          console.warn(
+            `[${scrId}] Starting in offline mode - will monitor for internet recovery`
+          );
+        }
+
+        // Start scheduler regardless of online status
+        // The scheduler will handle offline/online transitions
         const content = await this.startSchedulerForScreen(
           scrId,
           refreshInterval
@@ -74,6 +100,7 @@ class SchedulerHandlers {
           success: true,
           message: `Content scheduler started for screen ${scrId}`,
           data: content,
+          isOffline: !online,
         };
       } catch (error) {
         console.error("Error starting content scheduler:", error);
@@ -236,6 +263,105 @@ class SchedulerHandlers {
         };
       }
     });
+
+    // Get current content with internet check
+    ipcMain.handle("get-current-content", async (event, scrId) => {
+      console.log(`[${scrId}] Getting content........`);
+      try {
+        // Check internet connection first
+        const online = await this.checkInternetConnection();
+        console.log(
+          `[${scrId}] Internet status: ${online ? "Online ✅" : "Offline ❌"}`
+        );
+
+        if (!online) {
+          console.warn(
+            `[${scrId}] No internet connection - returning offline content`
+          );
+
+          // Return offline fallback content
+          const offlineContent = this.getDefaultOfflineContent(scrId);
+
+          return {
+            success: true,
+            isOffline: true,
+            data: [offlineContent],
+            message: "No internet connection - showing offline content",
+          };
+        }
+
+        // Internet available - fetch from database
+        const databaseService = new DatabaseService();
+        const currentContent = await databaseService.getAllContetent(scrId);
+
+        console.log(
+          `[${scrId}] Content fetched from DB:`,
+          currentContent?.length || 0,
+          "items"
+        );
+
+        if (!currentContent || currentContent.length === 0) {
+          console.warn(`[${scrId}] No content found in database`);
+
+          // Return empty/deactivated content
+          const deactivatedContent = this.getDeviceDeactivatedContent(scrId);
+
+          return {
+            success: true,
+            isEmpty: true,
+            data: [deactivatedContent],
+            message: "No content available for this screen",
+          };
+        }
+
+        return {
+          success: true,
+          isOffline: false,
+          data: currentContent,
+        };
+      } catch (error) {
+        console.error(`[${scrId}] Error getting current content:`, error);
+
+        // Return error with offline fallback
+        const offlineContent = this.getDefaultOfflineContent(scrId);
+
+        return {
+          success: false,
+          error: error.message,
+          data: [offlineContent],
+          message: "Error fetching content - showing offline page",
+        };
+      }
+    });
+  }
+
+  async updateRefreshInterval(scrId) {
+    try {
+      const databaseService = new DatabaseService();
+      const refreshInfo = await databaseService.getNextRefreshTime(scrId);
+
+      if (refreshInfo && refreshInfo.NxtRefreshTime) {
+        const refreshTime = new Date(refreshInfo.NxtRefreshTime);
+        const now = new Date();
+        let refreshInterval = refreshTime.getTime() - now.getTime();
+
+        console.log(
+          "Updating new New refresh===================Refresh Time:",
+          refreshTime
+        );
+        console.log("===================Current Time:", now);
+        console.log(
+          "===================Calculated refresh interval (ms):",
+          refreshInterval
+        );
+        this.refreshIntervals.set(scrId, refreshInterval);
+      } else {
+        console.warn("No next refresh time found, using default 1 minute");
+      }
+    } catch (error) {
+      console.error(`[${scrId}] Error updating refresh interval:`, error);
+      return this.refreshIntervals.get(scrId) || 60000;
+    }
   }
 
   async checkInternetConnection(ip = "142.251.43.36") {
@@ -465,7 +591,7 @@ class SchedulerHandlers {
         } catch (error) {
           console.error(`[${scrId}] Error in main refresh interval:`, error);
         }
-      }, refreshInterval);
+      }, this.refreshIntervals.get(scrId));
 
       this.schedulerIntervals.set(scrId, mainRefreshInterval);
 
@@ -492,6 +618,7 @@ class SchedulerHandlers {
 
               // Force refresh from database
               this.cachedContentList.delete(scrId);
+              await this.updateRefreshInterval(scrId);
               await this.checkAndUpdateContent(scrId, true);
             }
 
@@ -542,6 +669,14 @@ class SchedulerHandlers {
       // --- CONTENT PLAYBACK TIMER (dynamic based on content duration) ---
       const scheduleNextContentCheck = async () => {
         try {
+          // Safety check: ensure scheduler is still running
+          if (this.schedulerStatus.get(scrId) !== "running") {
+            console.log(
+              `[${scrId}] Scheduler stopped, canceling content timer`
+            );
+            return;
+          }
+
           const currentContent = this.currentPlayingContent.get(scrId);
 
           if (!currentContent || this.isOfflineMode.get(scrId)) {
@@ -581,21 +716,38 @@ class SchedulerHandlers {
             }
           }
 
-          // Ensure minimum delay
-          nextCheckDelay = Math.max(nextCheckDelay, 1000);
+          // Ensure minimum delay and maximum delay
+          nextCheckDelay = Math.max(nextCheckDelay, 1000); // Min 1 second
+          nextCheckDelay = Math.min(nextCheckDelay, 60 * 60 * 1000); // Max 1 hour
 
           console.log(
             `[${scrId}] Next content check in ${nextCheckDelay / 1000} seconds`
           );
 
+          // Clear previous timer if exists
+          const existingTimer = this.contentTimers.get(scrId);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+
           const timer = setTimeout(async () => {
-            await this.checkAndUpdateContent(scrId, false);
-            scheduleNextContentCheck(); // Schedule next check
+            // Double-check scheduler is still running before executing
+            if (this.schedulerStatus.get(scrId) === "running") {
+              await this.checkAndUpdateContent(scrId, false);
+              scheduleNextContentCheck(); // Schedule next check
+            }
           }, nextCheckDelay);
 
           this.contentTimers.set(scrId, timer);
         } catch (err) {
           console.error(`[${scrId}] Error scheduling next content check:`, err);
+
+          // Clear existing timer on error
+          const existingTimer = this.contentTimers.get(scrId);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+
           const timer = setTimeout(scheduleNextContentCheck, 10000); // Retry in 10s on error
           this.contentTimers.set(scrId, timer);
         }
@@ -604,20 +756,16 @@ class SchedulerHandlers {
       // --- INITIAL STARTUP ---
       (async () => {
         try {
-          const deviceStatus = await this.checkDeviceStatus(scrId);
-          const isDeviceActive = deviceStatus && deviceStatus.isActive;
-
-          if (!isDeviceActive) {
-            console.warn(`[${scrId}] Device deactivated at startup`);
-            const deactivatedContent = this.getDeviceDeactivatedContent(scrId);
-            this.currentPlayingContent.set(scrId, deactivatedContent);
-
-            await this.safeUpdateWindow(scrId, deactivatedContent.Source);
-            lastDeviceStatus = false;
-            return;
-          }
-
+          // Check internet first
           const online = await this.checkInternetConnection();
+          lastOnlineStatus = online;
+
+          console.log(
+            `[${scrId}] Initial startup - Internet: ${
+              online ? "Online ✅" : "Offline ❌"
+            }`
+          );
+
           if (!online) {
             console.warn(
               `[${scrId}] No internet at startup — using fallback content`
@@ -628,21 +776,45 @@ class SchedulerHandlers {
 
             await this.safeUpdateWindow(scrId, offlineContent.Source);
 
-            lastOnlineStatus = false;
+            // Set device status to true (we don't know yet, will check when online)
             lastDeviceStatus = true;
+            console.log(
+              `[${scrId}] ⏳ Waiting for internet connection to check device status...`
+            );
+            return;
+          }
+
+          // Internet available - check device status
+          const deviceStatus = await this.checkDeviceStatus(scrId);
+          const isDeviceActive = deviceStatus && deviceStatus.isActive;
+          lastDeviceStatus = isDeviceActive;
+
+          if (!isDeviceActive) {
+            console.warn(`[${scrId}] Device deactivated at startup`);
+            const deactivatedContent = this.getDeviceDeactivatedContent(scrId);
+            this.currentPlayingContent.set(scrId, deactivatedContent);
+
+            await this.safeUpdateWindow(scrId, deactivatedContent.Source);
             return;
           }
 
           // Device active and online - load content
+          console.log(
+            `[${scrId}] ✅ Device active and online - loading content`
+          );
           this.isOfflineMode.set(scrId, false);
           await this.checkAndUpdateContent(scrId, true);
-          lastOnlineStatus = true;
-          lastDeviceStatus = true;
 
           // Start the dynamic content playback timer
           scheduleNextContentCheck();
         } catch (error) {
           console.error(`[${scrId}] Error in initial scheduler run:`, error);
+
+          // Fallback to offline mode on error
+          this.isOfflineMode.set(scrId, true);
+          const offlineContent = this.getDefaultOfflineContent(scrId);
+          this.currentPlayingContent.set(scrId, offlineContent);
+          await this.safeUpdateWindow(scrId, offlineContent.Source);
         }
       })();
 
@@ -675,10 +847,17 @@ class SchedulerHandlers {
 
     try {
       this.isUpdatingWindow.set(scrId, true);
-      console.log(`[${scrId}] 🪟 Updating window to: ${displayUrl}`);
+      console.log(`[${scrId}] 🪟 Starting window update to: ${displayUrl}`);
 
       if (this.windowHandlers) {
-        await this.windowHandlers.createDisplayWindow(displayUrl);
+        // Add timeout to prevent hanging
+        const updatePromise =
+          this.windowHandlers.createDisplayWindow(displayUrl);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Window update timeout")), 10000)
+        );
+
+        await Promise.race([updatePromise, timeoutPromise]);
         console.log(`[${scrId}] ✅ Window updated successfully`);
         return true;
       } else {
@@ -692,7 +871,8 @@ class SchedulerHandlers {
       // Release lock after a short delay
       setTimeout(() => {
         this.isUpdatingWindow.set(scrId, false);
-      }, 1000); // 1 second delay to prevent rapid-fire updates
+        console.log(`[${scrId}] 🔓 Window update lock released`);
+      }, 2000); // Increased to 2 seconds for safety
     }
   }
 
@@ -783,9 +963,11 @@ class SchedulerHandlers {
   }
 
   async checkAndUpdateContent(scrId, forceUpdate) {
+    const callStack = new Error().stack;
     console.log(
       `================ Checking content for screen ${scrId} (forceUpdate: ${forceUpdate})`
     );
+    console.log(`[${scrId}] 📞 Called from:`, callStack.split("\n")[2].trim());
 
     try {
       if (this.isOfflineMode.get(scrId)) {
@@ -795,7 +977,24 @@ class SchedulerHandlers {
         return this.currentPlayingContent.get(scrId);
       }
 
-      const now = new Date();
+      // Prevent rapid repeated calls
+      const lastCallTime = this.lastCheckTime?.get(scrId) || 0;
+      const now = Date.now();
+      if (now - lastCallTime < 500 && !forceUpdate) {
+        console.log(
+          `[${scrId}] ⚠️ Rapid call detected (${
+            now - lastCallTime
+          }ms ago), skipping...`
+        );
+        return this.currentPlayingContent.get(scrId);
+      }
+
+      if (!this.lastCheckTime) {
+        this.lastCheckTime = new Map();
+      }
+      this.lastCheckTime.set(scrId, now);
+
+      const currentTime = new Date();
 
       // Fetch content list from DB if not cached or forced
       let contentList = this.cachedContentList.get(scrId);
@@ -818,7 +1017,7 @@ class SchedulerHandlers {
         console.log(`Using cached content list for screen ${scrId}`);
       }
 
-      console.log("Full Content List:", contentList);
+      console.log(`[${scrId}] Content list count: ${contentList.length}`);
 
       // Separate scheduled and default content
       const scheduledItems = contentList
@@ -832,7 +1031,7 @@ class SchedulerHandlers {
         }))
         .sort((a, b) => a.start - b.start);
 
-      console.log("Scheduled Items:", scheduledItems);
+      console.log(`[${scrId}] Scheduled items: ${scheduledItems.length}`);
 
       const defaultItems = contentList
         .filter((c) => c.ScheduleType === "Default")
@@ -843,9 +1042,11 @@ class SchedulerHandlers {
           return new Date(a.CreatedAt) - new Date(b.CreatedAt);
         });
 
+      console.log(`[${scrId}] Default items: ${defaultItems.length}`);
+
       // Pick scheduled content if active
       const activeScheduled = scheduledItems.find(
-        (item) => now >= item.start && now <= item.end
+        (item) => currentTime >= item.start && currentTime <= item.end
       );
 
       let nextContent = null;
@@ -930,6 +1131,7 @@ class SchedulerHandlers {
       this.currentPlayingContent.clear();
       this.isOfflineMode.clear();
       this.isUpdatingWindow.clear();
+      this.lastCheckTime.clear();
 
       console.log("Scheduler handlers cleaned up");
     } catch (error) {
