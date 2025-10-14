@@ -272,7 +272,7 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                 </button>
               </div>
               <CountdownTimer
-                expiryDate="2025-10-12T23:59:00"
+                expiryDate="2025-10-17T23:59:00"
                 onExpire={() => setLicenseExpired(true)}
               />
               {/* Settings Button */}
