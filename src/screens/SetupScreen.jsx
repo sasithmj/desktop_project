@@ -8,10 +8,8 @@ import {
   Database,
   Monitor,
   MapPin,
-  Clock,
 } from "lucide-react";
 import Login from "./Login.jsx";
-import LocalSchedular from "./LocalSchedular.jsx";
 
 export default function SetupScreen({ onNavigate, onConfigSaved }) {
   const [deviceConfig, setDeviceConfig] = useState({
@@ -28,11 +26,9 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
   const [plantcodes, setPlantCodeIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [loadingDeviceData, setLoadingDeviceData] = useState(false);
   const [status, setStatus] = useState({ type: "", message: "" });
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
-  const [showSchedulePopup, setShowSchedulePopup] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -42,8 +38,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
         // Load MAC Address
         const macResult = await window.electronAPI.getMacAddress();
         const ipResult = await window.electronAPI.getIpv4Address();
-        console.log("MAC Address:", macResult);
-        console.log("IP Address:", ipResult);
 
         if (!macResult) {
           throw new Error("MAC Address not found");
@@ -58,7 +52,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
 
         // Fetch device info using the MAC
         const deviceResult = await window.electronAPI.getDeviceByMac(macResult);
-        console.log("Device info:", deviceResult);
 
         if (deviceResult?.device) {
           const device = deviceResult.device;
@@ -68,7 +61,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
             plantId: device.PlantCode,
             scrName: device.ScrName,
             scrLoc: device.ScrLoc,
-            // ipAddress: device.IPAddress,
             createdBy: device.CreatedBy,
             plantCode: device.PlantCode,
           }));
@@ -76,7 +68,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
 
         // Load plant codes (SOAP call)
         const plantcodeResults = await window.electronAPI.getPlantCodes();
-        console.log("Plant codes:", plantcodeResults);
 
         setPlantCodeIds(plantcodeResults?.success ? plantcodeResults.data : []);
 
@@ -86,7 +77,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
           message: "Device setup ready. Fill details and save.",
         });
       } catch (error) {
-        console.error("Init error:", error);
         setStatus({
           type: "error",
           message: "Failed to load initial data",
@@ -120,8 +110,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
     setSaving(true);
     setStatus({ type: "", message: "" });
 
-    console.log("device config for soap: ", deviceConfig);
-
     try {
       const result = await window.electronAPI.saveDeviceConfig(deviceConfig);
 
@@ -134,7 +122,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
         if (onConfigSaved) onConfigSaved();
         setTimeout(() => {
           if (onNavigate) onNavigate();
-        }, 1500);
+        }, 1200);
       } else {
         setStatus({
           type: "error",
@@ -142,7 +130,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
         });
       }
     } catch (error) {
-      console.error("Save error:", error);
       setStatus({
         type: "error",
         message: "Error registering device",
@@ -283,27 +270,10 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
                 />
               </div>
 
-              {/* Created By */}
-              {/* <div>
-                <label className="block text-sm font-semibold mb-1">
-                  Created By
-                </label>
-                <input
-                  type="text"
-                  name="createdBy"
-                  value={deviceConfig.createdBy || ""}
-                  onChange={handleDeviceChange}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
-                />
-              </div> */}
-
               {/* Plant */}
               <div>
                 <label className="block text-sm font-semibold mb-1">
                   Plant Location
-                  {loadingDeviceData && (
-                    <Loader2 className="w-3 h-3 animate-spin inline ml-2" />
-                  )}
                 </label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -311,14 +281,9 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
                     name="plantCode"
                     value={deviceConfig.plantCode || ""}
                     onChange={handleDeviceChange}
-                    disabled={loadingDeviceData}
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm"
                   >
-                    <option value="">
-                      {loadingDeviceData
-                        ? "Loading plant locations..."
-                        : "Select a plant location"}
-                    </option>
+                    <option value="">Select a plant location</option>
                     {plantcodes.map((plant, index) => (
                       <option key={index} value={plant.PlantCode}>
                         {plant.PlantCode} - {plant.PlantName}
@@ -330,16 +295,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
             </div>
           </div>
         </div>
-
-        {/* <div className="p-6 flex justify-end">
-          <button
-            onClick={() => setShowSchedulePopup(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center space-x-2"
-          >
-            <Clock className="w-4 h-4" />
-            <span>Setup Local Schedule</span>
-          </button>
-        </div> */}
 
         {/* Actions */}
         <div className="p-6 border-t border-gray-100 bg-gray-50">
@@ -371,16 +326,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
           onSuccess={() => {
             if (pendingAction) pendingAction();
           }}
-        />
-      )}
-      {showSchedulePopup && (
-        <LocalSchedular
-          onNavigate={onNavigate}
-          onClose={() => setShowLoginModal(false)}
-
-          // onSuccess={() => {
-          //   if (pendingAction) pendingAction();
-          // }}
         />
       )}
     </div>

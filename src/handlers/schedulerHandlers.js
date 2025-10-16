@@ -6,6 +6,10 @@ const https = require("https");
 const DatabaseService = require("../database.js");
 const http = require("http");
 const ping = require("ping");
+const createDbWatcher = require("./scheduler/dbWatcher.js");
+const createOnlineWatcher = require("./scheduler/onlineWatcher.js");
+const createDeviceWatcher = require("./scheduler/deviceWatcher.js");
+const { clampInterval } = require("./scheduler/utils.js");
 
 class SchedulerHandlers {
   constructor() {
@@ -86,6 +90,9 @@ class SchedulerHandlers {
             `[${scrId}] Starting in offline mode - will monitor for internet recovery`
           );
         }
+
+        // Clamp refresh interval to sane bounds
+        refreshInterval = clampInterval(refreshInterval, 60000);
 
         // Start scheduler regardless of online status
         // The scheduler will handle offline/online transitions
@@ -354,6 +361,8 @@ class SchedulerHandlers {
           "===================Calculated refresh interval (ms):",
           refreshInterval
         );
+        // Clamp refresh interval to sane bounds
+        refreshInterval = clampInterval(refreshInterval, 60000);
         this.refreshIntervals.set(scrId, refreshInterval);
       } else {
         console.warn("No next refresh time found, using default 1 minute");
@@ -495,175 +504,99 @@ class SchedulerHandlers {
       let lastOnlineStatus = null;
       let lastDeviceStatus = null;
 
-      // --- DATABASE CHANGE MONITOR (checks every 1 minute) ---
-      const dbCheckInterval = setInterval(async () => {
-        try {
-          if (this.isOfflineMode.get(scrId)) {
-            console.log(`[${scrId}] Skipping DB check - offline mode`);
-            return;
-          }
-
-          console.log(`[${scrId}] 🔍 Checking for database changes...`);
-          const changeResult = await this.hasContentChanged(scrId);
-
-          if (changeResult.changed) {
-            console.log(`[${scrId}] 🔄 DB Content changed - updating cache`);
-
-            // Update cache and hash
-            this.cachedContentList.set(scrId, changeResult.newContent);
-            this.contentHashMap.set(scrId, changeResult.newHash);
-
-            // Check if currently playing content is still valid
-            const isCurrentValid = this.isCurrentContentStillValid(
-              scrId,
-              changeResult.newContent
+      // Helper to restart main refresh interval using latest interval
+      const restartMainRefresh = () => {
+        const existing = this.schedulerIntervals.get(scrId);
+        if (existing) {
+          clearInterval(existing);
+          this.schedulerIntervals.delete(scrId);
+        }
+        let intervalMs = this.refreshIntervals.get(scrId);
+        intervalMs = clampInterval(intervalMs, 60000);
+        const mainRefreshInterval = setInterval(async () => {
+          try {
+            console.log(
+              `[${scrId}] 🔄 Main refresh triggered at ${new Date().toLocaleTimeString()}`
             );
 
-            if (!isCurrentValid) {
+            // Check device status first
+            const deviceStatus = await this.checkDeviceStatus(scrId);
+            const isDeviceActive = deviceStatus && deviceStatus.isActive;
+
+            if (!isDeviceActive) {
+              if (lastDeviceStatus !== false) {
+                console.warn(
+                  `[${scrId}] Device deactivated - showing deactivation message`
+                );
+                const deactivatedContent =
+                  this.getDeviceDeactivatedContent(scrId);
+                this.currentPlayingContent.set(scrId, deactivatedContent);
+
+                await this.safeUpdateWindow(scrId, deactivatedContent.Source);
+              }
+              lastDeviceStatus = false;
+              return; // skip content update if device is deactivated
+            }
+
+            // Device active
+            const wasOffline = this.isOfflineMode.get(scrId);
+            const wasDeactivated = lastDeviceStatus === false;
+
+            if (wasOffline || wasDeactivated) {
               console.log(
-                `[${scrId}] Current content invalid - switching to new content`
+                `[${scrId}] Device reactivated or came online — forcing reload of live content`
               );
-              // Only update if current content is no longer valid
+              this.isOfflineMode.set(scrId, false);
+              this.cachedContentList.delete(scrId); // Force fresh fetch
               await this.checkAndUpdateContent(scrId, true);
             } else {
+              // Normal online operation - refresh content
               console.log(
-                `[${scrId}] Current content still valid - continuing without interruption`
+                `[${scrId}] Normal refresh - checking and updating content`
               );
-              // Just update the cache, don't interrupt playback
+              this.cachedContentList.delete(scrId); // Force fresh fetch on main refresh
+              await this.checkAndUpdateContent(scrId, true);
             }
-          } else {
-            console.log(`[${scrId}] ✓ No database changes detected`);
-          }
-        } catch (err) {
-          console.error(`[${scrId}] Error in DB check interval:`, err);
-        }
-      }, 60000); // Check every 1 minute (60000ms)
 
+            lastDeviceStatus = true;
+          } catch (error) {
+            console.error(`[${scrId}] Error in main refresh interval:`, error);
+          }
+        }, intervalMs);
+
+        this.schedulerIntervals.set(scrId, mainRefreshInterval);
+        console.log(
+          `[${scrId}] ♻️ Main refresh interval restarted at ${intervalMs}ms`
+        );
+      };
+
+      // --- DATABASE CHANGE MONITOR (checks every 1 minute) ---
+      const dbCheckInterval = createDbWatcher(this, scrId);
       this.dbCheckIntervals.set(scrId, dbCheckInterval);
 
       // --- MAIN CONTENT REFRESH (based on next refresh time from DB) ---
-      const mainRefreshInterval = setInterval(async () => {
-        try {
-          console.log(
-            `[${scrId}] 🔄 Main refresh triggered at ${new Date().toLocaleTimeString()}`
-          );
-
-          // Check device status first
-          const deviceStatus = await this.checkDeviceStatus(scrId);
-          const isDeviceActive = deviceStatus && deviceStatus.isActive;
-
-          if (!isDeviceActive) {
-            if (lastDeviceStatus !== false) {
-              console.warn(
-                `[${scrId}] Device deactivated - showing deactivation message`
-              );
-              const deactivatedContent =
-                this.getDeviceDeactivatedContent(scrId);
-              this.currentPlayingContent.set(scrId, deactivatedContent);
-
-              await this.safeUpdateWindow(scrId, deactivatedContent.Source);
-            }
-            lastDeviceStatus = false;
-            return; // skip content update if device is deactivated
-          }
-
-          // Device active
-          const wasOffline = this.isOfflineMode.get(scrId);
-          const wasDeactivated = lastDeviceStatus === false;
-
-          if (wasOffline || wasDeactivated) {
-            console.log(
-              `[${scrId}] Device reactivated or came online — forcing reload of live content`
-            );
-            this.isOfflineMode.set(scrId, false);
-            this.cachedContentList.delete(scrId); // Force fresh fetch
-            await this.checkAndUpdateContent(scrId, true);
-          } else {
-            // Normal online operation - refresh content
-            console.log(
-              `[${scrId}] Normal refresh - checking and updating content`
-            );
-            this.cachedContentList.delete(scrId); // Force fresh fetch on main refresh
-            await this.checkAndUpdateContent(scrId, true);
-          }
-
-          lastDeviceStatus = true;
-        } catch (error) {
-          console.error(`[${scrId}] Error in main refresh interval:`, error);
-        }
-      }, this.refreshIntervals.get(scrId));
-
-      this.schedulerIntervals.set(scrId, mainRefreshInterval);
+      restartMainRefresh();
 
       // --- ONLINE/OFFLINE WATCHER ---
-      const onlineWatcher = setInterval(async () => {
-        try {
-          const online = await this.checkInternetConnection();
-
-          if (online !== lastOnlineStatus) {
-            if (!online) {
-              console.warn(
-                `[${scrId}] Lost internet - switching to offline content`
-              );
-              this.isOfflineMode.set(scrId, true);
-              const offlineContent = this.getDefaultOfflineContent(scrId);
-              this.currentPlayingContent.set(scrId, offlineContent);
-
-              await this.safeUpdateWindow(scrId, offlineContent.Source);
-            } else {
-              console.log(
-                `[${scrId}] Internet restored - reloading live content`
-              );
-              this.isOfflineMode.set(scrId, false);
-
-              // Force refresh from database
-              this.cachedContentList.delete(scrId);
-              await this.updateRefreshInterval(scrId);
-              await this.checkAndUpdateContent(scrId, true);
-            }
-
-            lastOnlineStatus = online;
-          }
-        } catch (err) {
-          console.error(`[${scrId}] Error in online watcher:`, err);
-        }
-      }, 30000); // Check every 30 seconds
-
-      this.schedulerIntervals.set(scrId + "_onlineWatcher", onlineWatcher);
+      const onlineWatcherObj = createOnlineWatcher(
+        this,
+        scrId,
+        restartMainRefresh
+      );
+      this.schedulerIntervals.set(
+        scrId + "_onlineWatcher",
+        onlineWatcherObj.interval
+      );
 
       // --- DEVICE STATUS WATCHER (checks every 60 seconds) ---
-      const deviceStatusWatcher = setInterval(async () => {
-        try {
-          const deviceStatus = await this.checkDeviceStatus(scrId);
-          const isDeviceActive = deviceStatus && deviceStatus.isActive;
-
-          if (!isDeviceActive && lastDeviceStatus !== false) {
-            console.warn(
-              `[${scrId}] Device deactivated - showing deactivation message`
-            );
-            const deactivatedContent = this.getDeviceDeactivatedContent(scrId);
-            this.currentPlayingContent.set(scrId, deactivatedContent);
-
-            await this.safeUpdateWindow(scrId, deactivatedContent.Source);
-
-            lastDeviceStatus = false;
-          } else if (isDeviceActive && lastDeviceStatus === false) {
-            console.log(`[${scrId}] Device reactivated - reloading content`);
-            this.isOfflineMode.set(scrId, false);
-            this.cachedContentList.delete(scrId);
-            await this.checkAndUpdateContent(scrId, true);
-            lastDeviceStatus = true;
-          } else if (isDeviceActive) {
-            lastDeviceStatus = true;
-          }
-        } catch (err) {
-          console.error(`[${scrId}] Error in device status watcher:`, err);
-        }
-      }, 60000); // Check every 60 seconds
-
+      const deviceWatcherObj = createDeviceWatcher(
+        this,
+        scrId,
+        restartMainRefresh
+      );
       this.schedulerIntervals.set(
         scrId + "_deviceWatcher",
-        deviceStatusWatcher
+        deviceWatcherObj.interval
       );
 
       // --- CONTENT PLAYBACK TIMER (dynamic based on content duration) ---
@@ -781,6 +714,10 @@ class SchedulerHandlers {
             console.log(
               `[${scrId}] ⏳ Waiting for internet connection to check device status...`
             );
+            // seed online watcher state
+            if (onlineWatcherObj && onlineWatcherObj.setLastOnline) {
+              onlineWatcherObj.setLastOnline(online);
+            }
             return;
           }
 
@@ -795,6 +732,10 @@ class SchedulerHandlers {
             this.currentPlayingContent.set(scrId, deactivatedContent);
 
             await this.safeUpdateWindow(scrId, deactivatedContent.Source);
+            // seed device watcher state
+            if (deviceWatcherObj && deviceWatcherObj.setLastDevice) {
+              deviceWatcherObj.setLastDevice(false);
+            }
             return;
           }
 
@@ -807,6 +748,14 @@ class SchedulerHandlers {
 
           // Start the dynamic content playback timer
           scheduleNextContentCheck();
+
+          // seed watcher states
+          if (onlineWatcherObj && onlineWatcherObj.setLastOnline) {
+            onlineWatcherObj.setLastOnline(true);
+          }
+          if (deviceWatcherObj && deviceWatcherObj.setLastDevice) {
+            deviceWatcherObj.setLastDevice(true);
+          }
         } catch (error) {
           console.error(`[${scrId}] Error in initial scheduler run:`, error);
 
@@ -820,8 +769,8 @@ class SchedulerHandlers {
 
       console.log(`[${scrId}] Content scheduler started successfully`);
       console.log(
-        `[${scrId}] - Main refresh interval: ${refreshInterval}ms (${
-          refreshInterval / 1000
+        `[${scrId}] - Main refresh interval: ${refreshInterval}ms (${`
+:${"          "}`}refreshInterval / 1000
         }s)`
       );
       console.log(`[${scrId}] - DB change check: every 60 seconds`);
