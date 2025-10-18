@@ -7,7 +7,6 @@ import {
   Settings,
   Database,
   Monitor,
-  ArrowLeft,
   MapPin,
 } from "lucide-react";
 import Login from "./Login.jsx";
@@ -20,40 +19,40 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
     scrLoc: "",
     ipAddress: "",
     createdBy: "",
-    scrStatus: "SC1",
+    scrStatus: "Active",
     plantCode: "",
   });
 
   const [plantcodes, setPlantCodeIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [loadingDeviceData, setLoadingDeviceData] = useState(false);
   const [status, setStatus] = useState({ type: "", message: "" });
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
-
-
 
   useEffect(() => {
     const init = async () => {
       try {
         setLoading(true);
-  
-        // 1️⃣ Load MAC Address
+
+        // Load MAC Address
         const macResult = await window.electronAPI.getMacAddress();
-        console.log("MAC Address:", macResult);
-  
+        const ipResult = await window.electronAPI.getIpv4Address();
+
         if (!macResult) {
           throw new Error("MAC Address not found");
         }
-  
+
         // Update deviceConfig with MAC immediately
-        setDeviceConfig((prev) => ({ ...prev, macAddress: macResult }));
-  
-        // 2️⃣ Fetch device info using the MAC
+        setDeviceConfig((prev) => ({
+          ...prev,
+          macAddress: macResult,
+          ipAddress: ipResult,
+        }));
+
+        // Fetch device info using the MAC
         const deviceResult = await window.electronAPI.getDeviceByMac(macResult);
-        console.log("Device info:", deviceResult);
-  
+
         if (deviceResult?.device) {
           const device = deviceResult.device;
           setDeviceConfig((prev) => ({
@@ -62,27 +61,22 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
             plantId: device.PlantCode,
             scrName: device.ScrName,
             scrLoc: device.ScrLoc,
-            ipAddress: device.IPAddress,
             createdBy: device.CreatedBy,
             plantCode: device.PlantCode,
           }));
         }
-  
-        // 3️⃣ Load plant codes (SOAP call)
+
+        // Load plant codes (SOAP call)
         const plantcodeResults = await window.electronAPI.getPlantCodes();
-        console.log("Plant codes:", plantcodeResults);
-  
-        setPlantCodeIds(
-          plantcodeResults?.success ? plantcodeResults.data : []
-        );
-  
-        // 4️⃣ Set status for UI
+
+        setPlantCodeIds(plantcodeResults?.success ? plantcodeResults.data : []);
+
+        // Set status for UI
         setStatus({
           type: "info",
           message: "Device setup ready. Fill details and save.",
         });
       } catch (error) {
-        console.error("Init error:", error);
         setStatus({
           type: "error",
           message: "Failed to load initial data",
@@ -92,10 +86,9 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
         setLoading(false);
       }
     };
-  
+
     init();
   }, []);
-  
 
   const handleTestConnection = () => {
     // Save the action we want to do after login
@@ -117,8 +110,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
     setSaving(true);
     setStatus({ type: "", message: "" });
 
-    console.log("device config for soap: ",deviceConfig)
-
     try {
       const result = await window.electronAPI.saveDeviceConfig(deviceConfig);
 
@@ -131,7 +122,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
         if (onConfigSaved) onConfigSaved();
         setTimeout(() => {
           if (onNavigate) onNavigate();
-        }, 1500);
+        }, 1200);
       } else {
         setStatus({
           type: "error",
@@ -139,7 +130,6 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
         });
       }
     } catch (error) {
-      console.error("Save error:", error);
       setStatus({
         type: "error",
         message: "Error registering device",
@@ -200,7 +190,7 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
             <Database className="w-6 h-6 text-blue-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">
-            Device Setup (SOAP)
+            Device Setup
           </h2>
         </div>
 
@@ -280,27 +270,10 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
                 />
               </div>
 
-              {/* Created By */}
-              <div>
-                <label className="block text-sm font-semibold mb-1">
-                  Created By
-                </label>
-                <input
-                  type="text"
-                  name="createdBy"
-                  value={deviceConfig.createdBy || ""}
-                  onChange={handleDeviceChange}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-
               {/* Plant */}
               <div>
                 <label className="block text-sm font-semibold mb-1">
                   Plant Location
-                  {loadingDeviceData && (
-                    <Loader2 className="w-3 h-3 animate-spin inline ml-2" />
-                  )}
                 </label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -308,14 +281,9 @@ export default function SetupScreen({ onNavigate, onConfigSaved }) {
                     name="plantCode"
                     value={deviceConfig.plantCode || ""}
                     onChange={handleDeviceChange}
-                    disabled={loadingDeviceData}
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm"
                   >
-                    <option value="">
-                      {loadingDeviceData
-                        ? "Loading plant locations..."
-                        : "Select a plant location"}
-                    </option>
+                    <option value="">Select a plant location</option>
                     {plantcodes.map((plant, index) => (
                       <option key={index} value={plant.PlantCode}>
                         {plant.PlantCode} - {plant.PlantName}

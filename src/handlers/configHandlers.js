@@ -3,6 +3,8 @@ const { app } = require("electron");
 const path = require("path");
 const fs = require("fs").promises;
 const DatabaseService = require("../database.js");
+const NetworkUtils = require("../mainUtils/NetworkUtils.js");
+
 const bcrypt = require("bcryptjs");
 
 class ConfigHandlers {
@@ -40,11 +42,12 @@ class ConfigHandlers {
 
   registerHandlers() {
     ipcMain.handle(
+      //need this
       "save-device-config",
       this.saveDeviceConfigHandler.bind(this)
     );
-    // ipcMain.handle("connect-to-db", this.connectToDB.bind(this));
-    ipcMain.handle("get-device-config", this.getDeviceConfigHandler.bind(this));
+
+    ipcMain.handle("get-device-config", this.getDeviceConfigHandler.bind(this)); //need this
     ipcMain.handle("update-db-config", this.updateDbConfigHandler.bind(this));
     ipcMain.handle(
       "test-database-connection",
@@ -63,13 +66,12 @@ class ConfigHandlers {
   }
 
   async saveDeviceConfigHandler(event, config) {
+    //need this
     try {
       // Save config to file
-      await fs.writeFile(this.configPath, JSON.stringify(config, null, 2));
-
-      console.log("config data in saveConfig:",config);
+    
       const databaseService = new DatabaseService();
-      
+
       await databaseService.registerDevice(
         config.scrName,
         config.scrLoc,
@@ -81,10 +83,13 @@ class ConfigHandlers {
         config.plantCode
       );
 
-      // // Notify other handlers about the new db service
-      // if (this.onDbServiceReady) {
-      //   this.onDbServiceReady(this.dbService);
-      // }
+      const deviceFromDB = await databaseService.getDeviceByMacAddress(
+        config.macAddress
+      );
+
+      await fs.writeFile(this.configPath, JSON.stringify(deviceFromDB, null, 2));
+
+      console.log("config data in saveConfig:", config);
 
       return { success: true };
     } catch (error) {
@@ -92,58 +97,16 @@ class ConfigHandlers {
       return { success: false, error: error.message };
     }
   }
-  // async saveDeviceConfigHandler(event, config) {
-  //   try {
-  //     // Save config to file
-  //     await fs.writeFile(this.configPath, JSON.stringify(config, null, 2));
-
-  //     // Initialize database service
-  //     this.dbService = new DatabaseService(config.dbConfig);
-
-  //     // Test connection and register/update device
-  //     await this.dbService.connect();
-  //     console.log("Database connected successfully");
-  //     await this.dbService.registerDevice(
-  //       config.deviceConfig.scrName,
-  //       config.deviceConfig.scrLoc,
-  //       config.deviceConfig.ipAddress,
-  //       config.deviceConfig.macAddress,
-  //       config.deviceConfig.createdBy,
-  //       config.deviceConfig.scrStatus,
-  //       config.deviceConfig.onStatus,
-  //       config.deviceConfig.plantCode
-  //     );
-
-  //     // Notify other handlers about the new db service
-  //     if (this.onDbServiceReady) {
-  //       this.onDbServiceReady(this.dbService);
-  //     }
-
-  //     return { success: true };
-  //   } catch (error) {
-  //     console.error("Failed to save config or connect to database:", error);
-  //     return { success: false, error: error.message };
-  //   }
-  // }
 
   async getDeviceConfigHandler() {
+    //need this
     try {
       const configData = await fs.readFile(this.configPath, "utf8");
       const config = JSON.parse(configData);
 
       console.log("Loaded device config:", config);
-
-      // Initialize database service if config exists
-      // if (config) {
-      //   this.dbService = new DatabaseService(config.dbConfig);
-      //   if (this.onDbServiceReady) {
-      //     this.onDbServiceReady(this.dbService);
-      //   }
-      // }
-
       return config;
     } catch (error) {
-      // Config file doesn't exist or is invalid
       return null;
     }
   }

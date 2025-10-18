@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import RemoteConnect from "../src/screens/RemortConnect.jsx";
 import SetupScreen from "../src/screens/SetupScreen.jsx";
-import FullScreenPlayer from "./screens/FullScreenPlayer.jsx";
 import Login from "./screens/Login.jsx";
+import ContentScheduler from "./screens/ContentScheduler.jsx";
+import LocalSchedular from "./screens/LocalSchedular.jsx";
 
 export default function App() {
   const [configExists, setConfigExists] = useState(null); // null = loading
@@ -21,13 +22,21 @@ export default function App() {
     setConfigExists(null); // Loading state
     try {
       const config = await window.electronAPI.getDeviceConfig();
-      console.log("config from app.jsx:", config);
-      if (config) {
-        console.log("Configuration found:", config);
-        setConfigExists(true);
-        setCurrentScreen("remote"); // go straight to RemoteConnect
+      const exist = await window.electronAPI.checkDeviceExists();
+
+      if (exist) {
+        console.log("config from app.jsx:", config);
+        if (config) {
+          console.log("Configuration found:", config);
+          setConfigExists(true);
+          setCurrentScreen("remote"); // go straight to RemoteConnect
+        } else {
+          console.log("Configuration missing");
+          setConfigExists(false);
+          setCurrentScreen("setup");
+        }
       } else {
-        console.log("Configuration missing");
+        console.log("Configuration missing in db");
         setConfigExists(false);
         setCurrentScreen("setup");
       }
@@ -52,17 +61,23 @@ export default function App() {
 
   // Show screens based on state
   if (currentScreen === "setup") {
-    return <SetupScreen onNavigate={navigate} onConfigSaved={handleConfigSaved} />;
+    return (
+      <SetupScreen onNavigate={navigate} onConfigSaved={handleConfigSaved} />
+    );
   }
 
   if (currentScreen === "login") {
     return <Login onNavigate={navigate} />;
   }
 
-  if (currentScreen === "fullscreen") {
-    return <FullScreenPlayer onNavigate={navigate} onConfigSaved={handleConfigSaved} />;
+  if (currentScreen === "schedular") {
+    return (
+      <LocalSchedular onNavigate={navigate} onConfigSaved={handleConfigSaved} />
+    );
   }
 
   // Default → RemoteConnect if config exists
-  return <RemoteConnect onNavigate={navigate} onRefreshConfig={refreshConfig} />;
+  return (
+    <RemoteConnect onNavigate={navigate} onRefreshConfig={refreshConfig} />
+  );
 }

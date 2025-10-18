@@ -13,127 +13,87 @@ import {
   XCircle,
   Loader2,
 } from "lucide-react";
-import ContentScheduler from "./ContentScheduler.jsx";
+import { SchedulerClient } from "../utils/schedulerClient.js";
 
-export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
-  const [deviceConfig, setDeviceConfig] = useState(null);
-  const [currentContent, setCurrentContent] = useState(null);
-  const [contentItems, setContentItems] = useState([]);
+export default function RemoteConnect({ onNavigate }) {
+  const [deviceConfig, setDeviceConfig] = useState({
+    macAddress: "",
+    scrId: "",
+    scrName: "",
+    scrLoc: "",
+    ipAddress: "",
+    createdBy: "",
+    scrStatus: "",
+    plantCode: "",
+  });
+  const [currentContent, setCurrentContent] = useState([]);
   const [loading, setLoading] = useState(true);
   const [schedulerStatus, setSchedulerStatus] = useState("stopped");
-  const [refreshInterval, setRefreshInterval] = useState(1);
-  const [showContentScheduler, setShowContentScheduler] = useState(false);
-  const [showSettings, setShowSettings] = useState(false); 
-  const [showStats, setShowStats] = useState(false);
-  const [stats, setStats] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [lastUpdate, setLastUpdate] = useState(null);
 
   useEffect(() => {
-    loadDeviceConfig();
+    (async () => {
+      try {
+        const config = await window.electronAPI.getDeviceConfig();
+        if (config) {
+          setDeviceConfig((prev) => ({
+            ...prev,
+            scrId: config.ScrID,
+            macAddress: config.MACAddress,
+            plantId: config.PlantCode,
+            scrName: config.ScrName,
+            scrLoc: config.ScrLoc,
+            ipAddress: config.IPAddress,
+            createdBy: config.CreatedBy,
+            plantCode: config.PlantCode,
+          }));
+        }
+      } catch {
+        // no-op
+      }
+    })();
   }, []);
 
   useEffect(() => {
-    if (deviceConfig?.scrId) {
-      console.log("Loading device Config..........");
-      loadCurrentContent();
-    }
-  }, [deviceConfig]);
-
-  const loadDeviceConfig = async () => {
-    try {
-      const config = await window.electronAPI.getDeviceConfig();
-      if (config) {
-        console.log("Device config loaded:", config);
-        setDeviceConfig(config);
-        const screenId = await window.electronAPI.getDeviceByMac(
-          config.macAddress
-        );
-      }
-    } catch (error) {
-      console.error("Error loading device config:", error);
-    }
-  };
-
-  const loadCurrentContent = async () => {
-    try {
-      console.log("deviceConfig:", deviceConfig);
-      if (deviceConfig?.scrId) {
-        console.log(
-          "Loading current content for screen ID:",
-          deviceConfig.scrId
-        );
-        const result = await window.electronAPI.getCurrentContent(
-          deviceConfig.scrId
-        );
-        console.log("Current content result:", result);
-        if (result.success && result.data) {
-          // setCurrentContent(result.data);
-
-          startContentMonitoring(result.data); // pass content
+    if (!deviceConfig?.scrId) return;
+    (async () => {
+      try {
+        const res = await SchedulerClient.getCurrent(deviceConfig.scrId);
+        if (res?.data) setCurrentContent(res.data);
+        if (res?.success) {
+          const startRes = await SchedulerClient.start(deviceConfig.scrId);
+          if (startRes?.success) {
+            setSchedulerStatus("running");
+            setConnectionStatus(
+              startRes.isOffline ? "disconnected" : "connected"
+            );
+            setLastUpdate(new Date());
+          }
         }
+      } catch {
+        setConnectionStatus("error");
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("Error loading current content:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startContentMonitoring = async (contentData) => {
-    try {
-      if (deviceConfig?.scrId) {
-        console.log(
-          "Starting content scheduler for device:",
-          deviceConfig.scrId
-        );
-
-        const result = await window.electronAPI.startContentScheduler({
-          scrId: deviceConfig.scrId,
-          refreshInterval: refreshInterval * 60 * 1000,
-        });
-
-        console.log("Start scheduler result:", result);
-
-        if (result.success) {
-          setSchedulerStatus("running");
-          setConnectionStatus("connected");
-          // setCurrentContent(result.data);
-          setLastUpdate(new Date());
-        }
-
-        if (result.data) {
-          setCurrentContent(result.data);
-        }
-      }
-    } catch (error) {
-      console.error("Error starting content monitoring:", error);
-      setConnectionStatus("error");
-    }
-  };
+    })();
+  }, [deviceConfig?.scrId]);
 
   const toggleScheduler = async () => {
     try {
       if (schedulerStatus === "running") {
-        await window.electronAPI.stopContentScheduler(deviceConfig?.scrId);
+        await SchedulerClient.stop(deviceConfig.scrId);
         setSchedulerStatus("stopped");
       } else {
-        await startContentMonitoring();
+        const res = await SchedulerClient.start(deviceConfig.scrId);
+        if (res?.success) {
+          setSchedulerStatus("running");
+          setConnectionStatus(res.isOffline ? "disconnected" : "connected");
+          setLastUpdate(new Date());
+        }
       }
-    } catch (error) {
-      console.error("Error toggling scheduler:", error);
-    }
-  };
-
-  const updateRefreshInterval = async (newInterval) => {
-    try {
-      await window.electronAPI.updateRefreshInterval({
-        scrId: deviceConfig?.scrId,
-        interval: newInterval * 60 * 1000,
-      });
-      setRefreshInterval(newInterval);
-    } catch (error) {
-      console.error("Error updating refresh interval:", error);
+    } catch {
+      // keep UI stable
     }
   };
 
@@ -172,37 +132,15 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
     }
   };
 
-  const formatDuration = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  const formatDuration = (seconds) => {
+    const s = Number.isFinite(seconds) ? seconds : 0;
+    const hours = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (hours > 0) return `${hours}h ${mins}m ${sec}s`;
+    if (mins > 0) return `${mins}m ${sec}s`;
+    return `${sec}s`;
   };
-
-  const formatDateTime = (dateTime) => {
-    if (!dateTime) return "N/A";
-    return (
-      dateTime.getUTCFullYear() +
-      "-" +
-      String(dateTime.getUTCMonth() + 1).padStart(2, "0") +
-      "-" +
-      String(dateTime.getUTCDate()).padStart(2, "0") +
-      " " +
-      String(dateTime.getUTCHours()).padStart(2, "0") +
-      ":" +
-      String(dateTime.getUTCMinutes()).padStart(2, "0") +
-      ":" +
-      String(dateTime.getUTCSeconds()).padStart(2, "0")
-    );
-  };
-
-  if (showContentScheduler && deviceConfig?.scrId) {
-    return (
-      <ContentScheduler
-        scrId={deviceConfig.scrId}
-        onNavigate={() => setShowContentScheduler(false)}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen">
@@ -257,9 +195,8 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                 </button>
               </div>
 
-              {/* Settings Button */}
               <button
-                onClick={() => setShowSettings(!showSettings)}
+                onClick={() => onNavigate("setup")}
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
               >
                 <Settings className="w-5 h-5" />
@@ -290,26 +227,35 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                       Loading content...
                     </span>
                   </div>
-                ) : currentContent ? (
-                  <div className="space-y-4">
-                    <div className="flex items-start space-x-4">
-                      {getContentTypeIcon(currentContent.Type)}
-                      <div className="flex-1">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {currentContent.Title}
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {currentContent.Source}
-                        </p>
-                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                          <span>Type: {currentContent.Type}</span>
-                          <span>
-                            Duration: {formatDuration(currentContent.DurMin)}
-                          </span>
-                          <span>Status: {currentContent.ScheduleType}</span>
+                ) : currentContent && currentContent.length > 0 ? (
+                  <div className="space-y-6">
+                    {currentContent.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start space-x-4 border-b pb-4 last:border-0"
+                      >
+                        {getContentTypeIcon(item.Type)}
+                        <div className="flex-1">
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {item.Title}
+                          </h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {item.Source}
+                          </p>
+                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                            <span>Type: {item.Type}</span>
+                            <span>Duration: {formatDuration(item.DurMin)}</span>
+                            <span>Status: {item.ScheduleType}</span>
+                            {item.StartTime ? (
+                              <span>
+                                Start:{" "}
+                                {new Date(item.StartTime).toLocaleString()}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="text-center py-12">
@@ -317,28 +263,8 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                     <p className="mt-2 text-gray-500">
                       No content currently displayed
                     </p>
-                  </div> 
+                  </div>
                 )}
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Quick Actions
-                </h2>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button
-                    onClick={() => onNavigate("setup")}
-                    className="flex items-center justify-center space-x-2 p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <Settings className="w-5 h-5 text-gray-500" />
-                    <span className="font-medium">Device Settings</span>
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -382,60 +308,11 @@ export default function RemoteConnect({ onNavigate, onRefreshConfig }) {
                     Last Update
                   </label>
                   <p className="text-sm text-gray-900">
-                    {lastUpdate ? formatDateTime(lastUpdate) : "Never"}
+                    {lastUpdate ? lastUpdate.toLocaleString() : "Never"}
                   </p>
                 </div>
               </div>
             </div>
-
-            {/* Scheduler Settings */}
-            {showSettings && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Scheduler Settings
-                  </h3>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Refresh Interval
-                    </label>
-                    <select
-                      value={refreshInterval}
-                      onChange={(e) =>
-                        updateRefreshInterval(parseInt(e.target.value))
-                      }
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    >
-                      <option value={5}>1 minutes</option>
-                      <option value={10}>10 minutes</option>
-                      <option value={15}>15 minutes</option>
-                      <option value={30}>30 minutes</option>
-                      <option value={60}>1 hour</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Scheduler Status
-                    </label>
-                    <div className="flex items-center space-x-2">
-                      <div
-                        className={`w-3 h-3 rounded-full ${
-                          schedulerStatus === "running"
-                            ? "bg-green-500"
-                            : "bg-gray-400"
-                        }`}
-                      />
-                      <span className="text-sm text-gray-900 capitalize">
-                        {schedulerStatus}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

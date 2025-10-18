@@ -41,97 +41,6 @@ class DatabaseService {
   async connect() {
     console.log("Connecting to SQL Server with config:", this.config);
     return true;
-    // sql.connect(
-    //   {
-    //     server: "MSI\\SQLEXPRESS",
-    //     database: "remort",
-    //     user: "sa",
-    //     password: "Sasithmj2000#",
-    //     options: {
-    //       encrypt: true, // Use encryption
-    //       trustServerCertificate: true, // Trust self-signed certificates
-    //       enableArithAbort: true, // Required for some SQL Server versions
-    //     },
-    //     // driver: "msnodesqlv8",
-    //     port: 1433,
-    //   },
-    //   (err) => {
-    //     if (err) {
-    //       console.error("Database connection error:", err);
-    //       throw err;
-    //     }
-    //     console.log("Connected to SQL Server successfully");
-    //   }
-    // );
-    try {
-      // Prevent multiple connection attempts
-      if (this.isConnecting) {
-        console.log("Connection attempt already in progress, waiting...");
-        while (this.isConnecting) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-        return this.pool;
-      }
-
-      if (this.pool && this.pool.connected) {
-        return this.pool;
-      }
-
-      this.isConnecting = true;
-      console.log("Attempting to connect to SQL Server...");
-      console.log(`Server: ${this.config.server}`);
-      console.log(`Database: ${this.config.database}`);
-      console.log(`User: ${this.config.user}`);
-
-      // Close existing pool if it exists but is not connected
-      if (this.pool) {
-        try {
-          await this.pool.close();
-        } catch (closeError) {
-          console.warn("Error closing existing pool:", closeError.message);
-        }
-        this.pool = null;
-      }
-
-      // Create new connection pool
-      this.pool = new sql.ConnectionPool(this.config);
-
-      // Add error event handler
-      this.pool.on("error", (err) => {
-        console.error("SQL Pool Error:", err);
-        this.pool = null;
-        this.isConnecting = false;
-      });
-
-      // Connect to the pool
-      await this.pool.connect();
-
-      console.log("Successfully connected to SQL Server");
-      this.isConnecting = false;
-      return this.pool;
-    } catch (error) {
-      this.isConnecting = false;
-      this.pool = null;
-
-      console.error("Database connection error:", error);
-
-      // Provide more specific error messages
-      if (error.code === "ETIMEOUT") {
-        throw new Error(
-          `Connection timeout. Please check if SQL Server is running and accessible at ${this.config.server}`
-        );
-      } else if (error.code === "ELOGIN") {
-        throw new Error(`Login failed. Please check username and password.`);
-      } else if (error.code === "ECONNREFUSED") {
-        throw new Error(
-          `Connection refused. Please check if SQL Server is running on port ${this.config.port}`
-        );
-      } else {
-        throw new Error(
-          `Database connection failed: ${error.message || error.toString()}`
-        );
-      }
-    }
   }
 
   async testConnection() {
@@ -213,7 +122,7 @@ class DatabaseService {
     return true;
   }
 
-  async registerDevice(
+  async registerDevice( //need this
     scrName,
     scrLoc,
     ipAddress,
@@ -283,7 +192,7 @@ class DatabaseService {
     }
   }
 
-  async storeMacAddressMapping(
+  async storeMacAddressMapping( //need this
     scrName,
     scrLoc,
     ipAddress,
@@ -314,33 +223,6 @@ class DatabaseService {
       throw err;
     }
   }
-  // async storeMacAddressMapping(
-  //   scrName,
-  //   scrLoc,
-  //   ipAddress,
-  //   macAddress,
-  //   createdBy,
-  //   scrStatus = "",
-  //   onStatus = "",
-  //   plantCode
-  // ) {
-  //   const query = `
-  //       INSERT INTO DevicesTbl
-  //       (ScrName, ScrLoc, IPAddress, MACAddress, CreatedDate, CreatedBy, ScrStatus, OnStatus, PlantCode)
-  //       VALUES
-  //       (@scrName, @scrLoc, @ipAddress, @macAddress, GETDATE(), @createdBy, @scrStatus , @onStatus , @plantCode)
-  //   `;
-  //   await this.executeQuery(query, {
-  //     scrName,
-  //     scrLoc,
-  //     ipAddress,
-  //     macAddress,
-  //     createdBy,
-  //     scrStatus,
-  //     onStatus,
-  //     plantCode,
-  //   });
-  // }
 
   async updateDeviceByMacAddress(
     scrName,
@@ -375,39 +257,6 @@ class DatabaseService {
       macAddress,
     });
   }
-  // async updateDeviceByMacAddress(
-  //   scrName,
-  //   scrLoc,
-  //   ipAddress,
-  //   macAddress,
-  //   createdBy,
-  //   scrStatus,
-  //   onStatus,
-  //   plantCode
-  // ) {
-  //   const query = `
-  //       UPDATE DevicesTbl
-  //       SET ScrName = @scrName,
-  //       ScrLoc = @scrLoc,
-  //       IPAddress = @ipAddress,
-  //       CreatedBy = @createdBy,
-  //       ScrStatus = @scrStatus,
-  //       OnStatus = @onStatus,
-  //       PlantCode = @plantCode
-  //   WHERE MACAddress = @macAddress
-  //   `;
-  //   console.log("Updating device with MAC:", macAddress);
-  //   await this.executeQuery(query, {
-  //     scrName,
-  //     scrLoc,
-  //     ipAddress,
-  //     createdBy,
-  //     scrStatus,
-  //     onStatus,
-  //     plantCode,
-  //     macAddress,
-  //   });
-  // }
 
   async getLocationList() {
     const query = `
@@ -440,16 +289,8 @@ class DatabaseService {
     return result.recordset;
   }
 
-  // async getPlantCodes() {
-  //   const query = `
-  //     SELECT *
-  //     FROM PlantTbl
-  //     ORDER BY PlantCode
-  //   `;
-  //   const result = await this.executeQuery(query);
-  //   return result.recordset;
-  // }
   async getPlantCodes() {
+    //need this
     try {
       const soapService = new SoapService();
       const plantCodes = await soapService.getAllPlantCodes();
@@ -461,59 +302,43 @@ class DatabaseService {
     }
   }
 
-  // async getCurrentContentForDevice(customId) {
-  //   const query = `
-  //   SELECT Id, ScrID, Type, Source, DurMin, ScheduleType, StartTime, Title, CreatedAt
-  //   FROM DevicesURLTbl
-  //   WHERE ScrID = @scrId
-  //   AND (
-  //     ScheduleType = 'Live'
-  //     OR ScheduleType = 'Default'
-  //     OR (
-  //       ScheduleType = 'Schedule'
-  //       AND StartTime <= GETDATE()
-  //       AND DATEADD(MINUTE, DurMin, StartTime) >= GETDATE()
-  //     )
-  //   )
-  //   ORDER BY
-  //     CASE
-  //       WHEN ScheduleType = 'Live' THEN 1
-  //       WHEN ScheduleType = 'Schedule' THEN 2
-  //       WHEN ScheduleType = 'Default' THEN 3
-  //     END,
-  //     StartTime DESC
-  // `;
-
-  //   const result = await this.executeQuery(query, { scrId: customId });
-  //   const records = result.recordset;
-
-  //   console.log("Current content for device:", records);
-
-  //   if (!records || records.length === 0) return null;
-
-  //   // Case 1: Highest priority content (Live or Schedule)
-  //   if (records[0].ScheduleType !== "Default") {
-  //     return records[0];
-  //   }
-
-  //   // Case 2: All are Default — pick one at random
-  //   const defaultItems = records.filter(
-  //     (item) => item.ScheduleType === "Default"
-  //   );
-  //   if (defaultItems.length > 1) {
-  //     const randomIndex = Math.floor(Math.random() * defaultItems.length);
-  //     return defaultItems[randomIndex];
-  //   }
-
-  //   return defaultItems[0];
-  // }
-
   formatToISO(dateStr) {
     const date = new Date(dateStr);
     return date.toLocaleString("sv-SE").replace(" ", "T"); // keeps local time
   }
 
+  async getAllContetent(scrId) {
+    const soapService = new SoapService();
+    const contentList = await soapService.getContent({
+      screenID: scrId,
+    });
+
+    const currentTime = new Date();
+
+    // Filter and categorize content based on schedule type and time conditions
+    const validContent = contentList.filter((item) => {
+      const scheduleType = item.SchedileType || item.ScheduleType; // Handle typo in field name
+
+      if (scheduleType === "Live" || scheduleType === "Default") {
+        return true;
+      }
+
+      if (scheduleType === "Scheduled") {
+        const startTime = new Date(item.StartTime);
+        const endTime = new Date(startTime.getTime() + item.DurMin * 60 * 1000);
+
+        // Check if current time is within the scheduled window
+        return currentTime <= startTime || currentTime <= endTime;
+      }
+
+      return false;
+    });
+
+    return validContent;
+  }
+
   async getCurrentContentForDevice(targetScrID) {
+    //need thiis
     // Filter content for the specific device
     const soapService = new SoapService();
     const contentList = await soapService.getContent({
@@ -673,68 +498,28 @@ class DatabaseService {
     };
   }
 
-  // async getCurrentContentForDevice(customId) {
-  //   const query = `
-  //   SELECT Id, ScrID, Type, Source, DurMin, ScheduleType, StartTime, Title, CreatedAt
-  //   FROM DevicesURLTbl
-  //   WHERE ScrID = @scrId
-  //   AND (
-  //     ScheduleType = 'Live'
-  //     OR ScheduleType = 'Default'
-  //     OR (
-  //       ScheduleType = 'Schedule'
-  //       AND StartTime <= GETDATE()
-  //       AND DATEADD(MINUTE, DurMin, StartTime) >= GETDATE()
-  //     )
-  //   )
-  //   ORDER BY
-  //     CASE
-  //       WHEN ScheduleType = 'Live' THEN 1
-  //       WHEN ScheduleType = 'Schedule' THEN 2
-  //       WHEN ScheduleType = 'Default' THEN 3
-  //     END,
-  //     StartTime DESC
-  // `;
-
-  //   const result = await this.executeQuery(query, { scrId: customId });
-  //   const records = result.recordset;
-
-  //   console.log("Current content for device:", records);
-
-  //   if (!records || records.length === 0) return null;
-
-  //   // Case 1: Highest priority content (Live or Schedule)
-  //   if (records[0].ScheduleType !== "Default") {
-  //     return records[0];
-  //   }
-
-  //   // Case 2: All are Default — return all default items for app logic to handle
-  //   const defaultItems = records.filter(
-  //     (item) => item.ScheduleType === "Default"
-  //   );
-
-  //   return {
-  //     type: "DEFAULT_POOL",
-  //     items: defaultItems,
-  //   };
-  // }
-
-  // async getDeviceByMacAddress(macAddress) {
-  //   const query = `
-  //     SELECT *
-  //     FROM DevicesTbl
-  //     WHERE MACAddress = @macAddress
-  //   `;
-  //   console.log("Fetching device by MAC address:", macAddress);
-  //   const result = await this.executeQuery(query, { macAddress });
-  //   return result.recordset[0] || null;
-  // }
   async getDeviceByMacAddress(macAddress) {
+    //need this
     try {
       const soapService = new SoapService(); // create instance
       const macDevices = await soapService.getDeviceByMac(macAddress);
       if (Array.isArray(macDevices) && macDevices.length > 0) {
         return macDevices[0]; // return the first result
+      }
+
+      return null; // no devices found
+    } catch (err) {
+      console.error("Failed to fetch device from SOAP:", err);
+      throw err;
+    }
+  }
+  async getNextRefreshTime(scrId) {
+    //need this
+    try {
+      const soapService = new SoapService(); // create instance
+      const refreshTime = await soapService.getRefreshTime(scrId);
+      if (Array.isArray(refreshTime) && refreshTime.length > 0) {
+        return refreshTime[0]; // return the first result
       }
 
       return null; // no devices found
