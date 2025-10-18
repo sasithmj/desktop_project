@@ -1,15 +1,22 @@
 {
-  "name": "desktopproject",
-  "productName": "desktopproject",
+  "name": "bx-beam",
+  "productName": "BX Beam",
   "version": "1.0.0",
   "description": "Remort Desk Application",
   "main": ".webpack/main",
   "build": {
-    "appId": "com.example.myapp",
-    "productName": "Remort Desk Application",
+    "appId": "com.desktop.bxbeam",
+    "productName": "BX Beam",
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "uninstallerDisplayName": "BX Beam - Uninstall",
+      "allowToChangeInstallationDirectory": true
     },
     "directories": {
       "buildResources": "build"
@@ -20,7 +27,8 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "lint": "echo \"No linting configured\""
+    "lint": "echo \"No linting configured\"",
+    "build:win": "electron-builder --win nsis"
   },
   "keywords": [],
   "author": {
@@ -49,6 +57,7 @@
     "babel-loader": "^10.0.0",
     "css-loader": "^6.11.0",
     "electron": "37.2.5",
+    "electron-builder": "^26.0.12",
     "node-loader": "^2.1.0",
     "postcss": "^8.5.6",
     "postcss-loader": "^8.1.1",

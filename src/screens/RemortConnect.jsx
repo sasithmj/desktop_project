@@ -132,11 +132,14 @@ export default function RemoteConnect({ onNavigate }) {
     }
   };
 
-  const formatDuration = (minutes) => {
-    const value = Number.isFinite(minutes) ? minutes : 0;
-    const hours = Math.floor(value / 60);
-    const mins = value % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  const formatDuration = (seconds) => {
+    const s = Number.isFinite(seconds) ? seconds : 0;
+    const hours = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (hours > 0) return `${hours}h ${mins}m ${sec}s`;
+    if (mins > 0) return `${mins}m ${sec}s`;
+    return `${sec}s`;
   };
 
   return (

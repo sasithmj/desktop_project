@@ -27,11 +27,49 @@ class SchedulerHandlers {
     this.contentHashMap = new Map(); // Track content hash to detect changes
     this.isUpdatingWindow = new Map(); // Prevent concurrent window updates
     this.lastCheckTime = new Map(); // Track last check time to prevent rapid calls
+    this.timeOffsetMs = 0; // Server time offset (serverTime - localTime)
     this.setupHandlers();
   }
 
   setDbService(dbService) {
     this.dbService = dbService;
+  }
+
+  // Returns the current accurate time using the last synced offset
+  now() {
+    return new Date(Date.now() + (this.timeOffsetMs || 0));
+  }
+
+  // Syncs local time offset against WorldTimeAPI
+  async syncTimeOffset() {
+    try {
+      const response = await fetch(
+        "https://worldtimeapi.org/api/timezone/Asia/Colombo"
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const serverTime = new Date(data.datetime);
+      const localTime = new Date();
+
+      if (!isNaN(serverTime.getTime())) {
+        this.timeOffsetMs = serverTime.getTime() - localTime.getTime();
+        console.log(
+          `Time sync: server=${serverTime.toISOString()}, local=${localTime.toISOString()}, offsetMs=${
+            this.timeOffsetMs
+          }`
+        );
+        return true;
+      } else {
+        console.warn("Time sync: invalid server time format");
+        return false;
+      }
+    } catch (error) {
+      console.warn("Time sync error:", error.message || error);
+      return false;
+    }
   }
 
   setupHandlers() {
@@ -469,10 +507,10 @@ class SchedulerHandlers {
 
     // If it's scheduled content, check if it's still within time range
     if (currentContent.ScheduleType === "Scheduled") {
-      const now = new Date();
+      const now = this.now();
       const start = new Date(currentContent.StartTime);
       const end = new Date(
-        start.getTime() + (currentContent.DurMin || 1) * 60 * 1000
+        start.getTime() + (currentContent.DurMin || 60) * 1000
       );
 
       if (now < start || now > end) {
@@ -599,6 +637,12 @@ class SchedulerHandlers {
         deviceWatcherObj.interval
       );
 
+      // --- TIME SYNC (every 10 minutes) ---
+      const timeSyncInterval = setInterval(() => {
+        this.syncTimeOffset();
+      }, 10 * 60 * 1000);
+      this.schedulerIntervals.set(scrId + "_timeSync", timeSyncInterval);
+
       // --- CONTENT PLAYBACK TIMER (dynamic based on content duration) ---
       const scheduleNextContentCheck = async () => {
         try {
@@ -619,13 +663,13 @@ class SchedulerHandlers {
             return;
           }
 
-          // Calculate next check time
-          let nextCheckDelay = (currentContent.DurMin || 1) * 60 * 1000;
+          // Calculate next check time (DurMin now contains seconds)
+          let nextCheckDelay = (currentContent.DurMin || 60) * 1000;
 
           // For scheduled content, check if there's a closer scheduled item
           const cachedContent = this.cachedContentList.get(scrId);
           if (cachedContent) {
-            const now = new Date();
+            const now = this.now();
             const scheduledItems = cachedContent
               .filter((c) => c.ScheduleType === "Scheduled")
               .map((item) => ({
@@ -689,6 +733,9 @@ class SchedulerHandlers {
       // --- INITIAL STARTUP ---
       (async () => {
         try {
+          // Sync time with server first
+          await this.syncTimeOffset();
+
           // Check internet first
           const online = await this.checkInternetConnection();
           lastOnlineStatus = online;
@@ -882,6 +929,12 @@ class SchedulerHandlers {
         this.schedulerIntervals.delete(scrId + "_deviceWatcher");
       }
 
+      const timeSync = this.schedulerIntervals.get(scrId + "_timeSync");
+      if (timeSync) {
+        clearInterval(timeSync);
+        this.schedulerIntervals.delete(scrId + "_timeSync");
+      }
+
       const dbCheckInterval = this.dbCheckIntervals.get(scrId);
       if (dbCheckInterval) {
         clearInterval(dbCheckInterval);
@@ -943,7 +996,7 @@ class SchedulerHandlers {
       }
       this.lastCheckTime.set(scrId, now);
 
-      const currentTime = new Date();
+      const currentTime = this.now();
 
       // Fetch content list from DB if not cached or forced
       let contentList = this.cachedContentList.get(scrId);
@@ -975,7 +1028,7 @@ class SchedulerHandlers {
           ...item,
           start: new Date(item.StartTime),
           end: new Date(
-            new Date(item.StartTime).getTime() + (item.DurMin || 1) * 60 * 1000
+            new Date(item.StartTime).getTime() + (item.DurMin || 60) * 1000
           ),
         }))
         .sort((a, b) => a.start - b.start);
