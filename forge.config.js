@@ -15,7 +15,7 @@ module.exports = {
         name: "bx-beam",
         setupIcon: path.join(__dirname, "assets/icon.ico"),
         iconUrl:
-          "https://raw.githubusercontent.com/sasithmj/your-repo-name/main/assets/icon.ico",
+          "https://github.com/sasithmj/desktop_project/blob/master/assets/icon.ico",
       },
     },
     {

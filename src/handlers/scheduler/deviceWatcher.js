@@ -1,4 +1,9 @@
-module.exports = function createDeviceWatcher(handler, scrId, onReactivated) {
+module.exports = function createDeviceWatcher(
+  handler,
+  scrId,
+  onReactivated,
+  onStartPlaybackTimer
+) {
   let lastDeviceStatus = null;
 
   const interval = setInterval(async () => {
@@ -20,6 +25,8 @@ module.exports = function createDeviceWatcher(handler, scrId, onReactivated) {
         handler.cachedContentList.delete(scrId);
         if (typeof onReactivated === "function") onReactivated();
         await handler.checkAndUpdateContent(scrId, true);
+        // Start the playback timer when device is reactivated
+        if (typeof onStartPlaybackTimer === "function") onStartPlaybackTimer();
         lastDeviceStatus = true;
       } else if (isDeviceActive) {
         lastDeviceStatus = true;

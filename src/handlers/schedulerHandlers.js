@@ -576,25 +576,13 @@ class SchedulerHandlers {
               return; // skip content update if device is deactivated
             }
 
-            // Device active
-            const wasOffline = this.isOfflineMode.get(scrId);
-            const wasDeactivated = lastDeviceStatus === false;
-
-            if (wasOffline || wasDeactivated) {
-              console.log(
-                `[${scrId}] Device reactivated or came online — forcing reload of live content`
-              );
-              this.isOfflineMode.set(scrId, false);
-              this.cachedContentList.delete(scrId); // Force fresh fetch
-              await this.checkAndUpdateContent(scrId, true);
-            } else {
-              // Normal online operation - refresh content
-              console.log(
-                `[${scrId}] Normal refresh - checking and updating content`
-              );
-              this.cachedContentList.delete(scrId); // Force fresh fetch on main refresh
-              await this.checkAndUpdateContent(scrId, true);
-            }
+            // Device active - only do normal refresh here
+            // Online/reactivation transitions are handled by watchers to avoid duplication
+            console.log(
+              `[${scrId}] Normal refresh - checking and updating content`
+            );
+            this.cachedContentList.delete(scrId); // Force fresh fetch on main refresh
+            await this.checkAndUpdateContent(scrId, true);
 
             lastDeviceStatus = true;
           } catch (error) {
@@ -614,34 +602,6 @@ class SchedulerHandlers {
 
       // --- MAIN CONTENT REFRESH (based on next refresh time from DB) ---
       restartMainRefresh();
-
-      // --- ONLINE/OFFLINE WATCHER ---
-      const onlineWatcherObj = createOnlineWatcher(
-        this,
-        scrId,
-        restartMainRefresh
-      );
-      this.schedulerIntervals.set(
-        scrId + "_onlineWatcher",
-        onlineWatcherObj.interval
-      );
-
-      // --- DEVICE STATUS WATCHER (checks every 60 seconds) ---
-      const deviceWatcherObj = createDeviceWatcher(
-        this,
-        scrId,
-        restartMainRefresh
-      );
-      this.schedulerIntervals.set(
-        scrId + "_deviceWatcher",
-        deviceWatcherObj.interval
-      );
-
-      // --- TIME SYNC (every 10 minutes) ---
-      const timeSyncInterval = setInterval(() => {
-        this.syncTimeOffset();
-      }, 10 * 60 * 1000);
-      this.schedulerIntervals.set(scrId + "_timeSync", timeSyncInterval);
 
       // --- CONTENT PLAYBACK TIMER (dynamic based on content duration) ---
       const scheduleNextContentCheck = async () => {
@@ -729,6 +689,36 @@ class SchedulerHandlers {
           this.contentTimers.set(scrId, timer);
         }
       };
+
+      // --- ONLINE/OFFLINE WATCHER ---
+      const onlineWatcherObj = createOnlineWatcher(
+        this,
+        scrId,
+        restartMainRefresh,
+        scheduleNextContentCheck
+      );
+      this.schedulerIntervals.set(
+        scrId + "_onlineWatcher",
+        onlineWatcherObj.interval
+      );
+
+      // --- DEVICE STATUS WATCHER (checks every 60 seconds) ---
+      const deviceWatcherObj = createDeviceWatcher(
+        this,
+        scrId,
+        restartMainRefresh,
+        scheduleNextContentCheck
+      );
+      this.schedulerIntervals.set(
+        scrId + "_deviceWatcher",
+        deviceWatcherObj.interval
+      );
+
+      // --- TIME SYNC (every 10 minutes) ---
+      const timeSyncInterval = setInterval(() => {
+        this.syncTimeOffset();
+      }, 10 * 60 * 1000);
+      this.schedulerIntervals.set(scrId + "_timeSync", timeSyncInterval);
 
       // --- INITIAL STARTUP ---
       (async () => {
