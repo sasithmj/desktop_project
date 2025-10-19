@@ -1,398 +1,619 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BX Beam | Inactive Screen</title>
     <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      body {
+        background: linear-gradient(135deg, #0a1929 0%, #051324 100%);
+        color: white;
+        font-family: "Aptos", "Segoe UI", sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+        position: relative;
+      }
 
-        body {
-            background: linear-gradient(135deg, #0a1929 0%, #051324 100%);
-            color: white;
-            font-family: 'Aptos', 'Segoe UI', sans-serif;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-            position: relative;
+      .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 5;
+        pointer-events: none;
+      }
+
+      .container {
+        text-align: center;
+        z-index: 10;
+        padding: 2rem;
+        background: rgba(0, 21, 41, 0.7);
+        border-radius: 20px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(39, 195, 253, 0.2);
+        box-shadow: 0 0 50px rgba(39, 195, 253, 0.1);
+        animation: container-pulse 8s infinite;
+        max-width: 800px;
+        width: 90%;
+      }
+
+      .logo-container {
+        position: relative;
+        width: 100%;
+        margin: 0 auto;
+        display: flex;
+        justify-content: center;
+        height: 150px;
+      }
+
+      .logo-svg {
+        width: 400px;
+        height: auto;
+        filter: drop-shadow(0 0 15px rgba(39, 195, 253, 0.5));
+        animation: logo-float 6s infinite ease-in-out;
+      }
+
+      .logo-shape {
+        animation: beamAnimation 20s ease-out infinite;
+        opacity: 10;
+      }
+
+      .shape-1 {
+        animation-delay: 0.1s;
+      }
+      .shape-2 {
+        animation-delay: 0.2s;
+      }
+      .shape-3 {
+        animation-delay: 0.3s;
+      }
+      .shape-4 {
+        animation-delay: 0.4s;
+      }
+      .shape-5 {
+        animation-delay: 0.5s;
+      }
+      .shape-6 {
+        animation-delay: 0.6s;
+      }
+      .shape-7 {
+        animation-delay: 0.7s;
+      }
+      .shape-8 {
+        animation-delay: 0.8s;
+      }
+
+      .message {
+        font-size: 1rem;
+        margin-bottom: 1.5rem;
+        opacity: 0.9;
+        animation: message-pulse 4s infinite;
+        font-weight: 700;
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+      }
+
+      .instruction {
+        font-size: 1.2rem;
+        opacity: 0.8;
+        margin-top: 1.5rem;
+        font-weight: 500;
+      }
+
+      .particle {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(39, 195, 253, 0.15);
+        animation: float-around 20s infinite linear;
+        z-index: -1;
+      }
+
+      .beam {
+        position: absolute;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #27c3fd, transparent);
+        animation: beam-sweep 12s infinite linear;
+        z-index: -1;
+      }
+
+      .floating-shape {
+        position: absolute;
+        z-index: 5;
+        opacity: 0.6;
+        animation: float-random 15s infinite ease-in-out;
+      }
+
+      .power-logo {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 240px;
+        height: auto;
+        z-index: 20;
+        opacity: 0.9;
+        transition: opacity 0.3s ease;
+        filter: drop-shadow(0 0 15px rgba(255, 255, 255, 1));
+        text-shadow: #ffffff;
+      }
+
+      .power-logo:hover {
+        opacity: 1;
+        filter: drop-shadow(0 0 20px white);
+      }
+
+      @keyframes beamAnimation {
+        0%,
+        20% {
+          opacity: 0;
+          transform: scale(0.8) translate(20px, -20px);
+          filter: drop-shadow(0 0 10px #27c3fd);
         }
-        
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.3);
-            z-index: 5;
-            pointer-events: none;
+        30%,
+        70% {
+          opacity: 0.9;
+          transform: scale(1.05) translate(0, 0);
+          filter: drop-shadow(0 0 20px #27c3fd);
         }
-        
-        .container {
-            text-align: center;
-            z-index: 10;
-            padding: 2rem;
-            background: rgba(0, 21, 41, 0.7);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(39, 195, 253, 0.2);
-            box-shadow: 0 0 50px rgba(39, 195, 253, 0.1);
-            animation: container-pulse 8s infinite;
-            max-width: 800px;
-            width: 90%;
+        80%,
+        100% {
+          opacity: 0;
+          transform: scale(0.9) translate(-10px, 10px);
+          filter: drop-shadow(0 0 5px rgba(39, 195, 253, 0.2));
         }
-        
-        .logo-container {
-            position: relative;
-            width: 100%;
-            margin: 0 auto;
-            display: flex;
-            justify-content: center;
-            height: 150px;
+      }
+
+      @keyframes float-random {
+        0% {
+          transform: translate(0, 0) rotate(0deg) scale(1);
+          opacity: 0.3;
         }
-        
+        25% {
+          transform: translate(40vw, 20vh) rotate(90deg) scale(1.2);
+          opacity: 0.6;
+        }
+        50% {
+          transform: translate(-30vw, 40vh) rotate(180deg) scale(0.8);
+          opacity: 0.8;
+        }
+        75% {
+          transform: translate(20vw, -30vh) rotate(270deg) scale(1.1);
+          opacity: 0.5;
+        }
+        100% {
+          transform: translate(0, 0) rotate(360deg) scale(1);
+          opacity: 0.3;
+        }
+      }
+
+      @keyframes logo-float {
+        0%,
+        100% {
+          transform: translateY(0) scale(1);
+        }
+        50% {
+          transform: translateY(-15px) scale(1.02);
+        }
+      }
+
+      @keyframes float-around {
+        0% {
+          transform: translate(0, 0) rotate(0deg) scale(1);
+          opacity: 0.7;
+        }
+        25% {
+          transform: translate(40vw, 30vh) rotate(90deg) scale(1.2);
+          opacity: 0.4;
+        }
+        50% {
+          transform: translate(20vw, 60vh) rotate(180deg) scale(0.8);
+          opacity: 0.8;
+        }
+        75% {
+          transform: translate(-40vw, 30vh) rotate(270deg) scale(1.1);
+          opacity: 0.5;
+        }
+        100% {
+          transform: translate(0, 0) rotate(360deg) scale(1);
+          opacity: 0.7;
+        }
+      }
+
+      @keyframes beam-sweep {
+        0% {
+          transform: rotate(0deg) translateX(-100vh) scaleX(0.5);
+          opacity: 0;
+        }
+        10% {
+          opacity: 0.7;
+        }
+        50% {
+          transform: rotate(180deg) translateX(100vh) scaleX(2);
+          opacity: 0.3;
+        }
+        100% {
+          transform: rotate(360deg) translateX(-100vh) scaleX(0.5);
+          opacity: 0;
+        }
+      }
+
+      @keyframes container-pulse {
+        0%,
+        100% {
+          box-shadow: 0 0 50px rgba(39, 195, 253, 0.1);
+        }
+        50% {
+          box-shadow: 0 0 70px rgba(39, 195, 253, 0.3);
+        }
+      }
+
+      @keyframes message-pulse {
+        0%,
+        100% {
+          opacity: 0.7;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      @media (max-width: 768px) {
         .logo-svg {
-            width: 400px;
-            height: auto;
-            filter: drop-shadow(0 0 15px rgba(39, 195, 253, 0.5));
-            animation: logo-float 6s infinite ease-in-out;
+          width: 300px;
         }
-        
-        .logo-shape {
-            animation: beamAnimation 20s ease-out infinite;
-            opacity: 10;
-        }
-        
-        .shape-1 { animation-delay: 0.1s; }
-        .shape-2 { animation-delay: 0.2s; }
-        .shape-3 { animation-delay: 0.3s; }
-        .shape-4 { animation-delay: 0.4s; }
-        .shape-5 { animation-delay: 0.5s; }
-        .shape-6 { animation-delay: 0.6s; }
-        .shape-7 { animation-delay: 0.7s; }
-        .shape-8 { animation-delay: 0.8s; }
-        
         .message {
-            font-size: 2rem;
-            margin-bottom: 1.5rem;
-            opacity: 0.9;
-            animation: message-pulse 4s infinite;
-            font-weight: 700;
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+          font-size: 1.5rem;
         }
-        
         .instruction {
-            font-size: 1.2rem;
-            opacity: 0.8;
-            margin-top: 1.5rem;
-            font-weight: 500;
+          font-size: 1rem;
         }
-        
-        .particle {
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(39, 195, 253, 0.15);
-            animation: float-around 20s infinite linear;
-            z-index: -1;
-        }
-        
-        .beam {
-            position: absolute;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #27c3fd, transparent);
-            animation: beam-sweep 12s infinite linear;
-            z-index: -1;
-        }
-        
-        .floating-shape {
-            position: absolute;
-            z-index: 5;
-            opacity: 0.6;
-            animation: float-random 15s infinite ease-in-out;
-        }
-        
         .power-logo {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 240px;
-            height: auto;
-            z-index: 20;
-            opacity: 0.9;
-            transition: opacity 0.3s ease;
-            filter: drop-shadow(0 0 15px rgba(255, 255, 255,1));
-            text-shadow: #ffffff;
+          width: 150px;
         }
-        
-        .power-logo:hover {
-            opacity: 1;
-            filter: drop-shadow(0 0 20px white);
+      }
+
+      @media (max-width: 480px) {
+        .logo-svg {
+          width: 250px;
         }
-        
-        @keyframes beamAnimation {
-            0%, 20% {
-                opacity: 0;
-                transform: scale(0.8) translate(20px, -20px);
-                filter: drop-shadow(0 0 10px #27c3fd);
-            }
-            30%, 70% {
-                opacity: 0.9;
-                transform: scale(1.05) translate(0, 0);
-                filter: drop-shadow(0 0 20px #27c3fd);
-            }
-            80%, 100% {
-                opacity: 0;
-                transform: scale(0.9) translate(-10px, 10px);
-                filter: drop-shadow(0 0 5px rgba(39, 195, 253, 0.2));
-            }
+        .message {
+          font-size: 1.3rem;
         }
-        
-        @keyframes float-random {
-            0% {
-                transform: translate(0, 0) rotate(0deg) scale(1);
-                opacity: 0.3;
-            }
-            25% {
-                transform: translate(40vw, 20vh) rotate(90deg) scale(1.2);
-                opacity: 0.6;
-            }
-            50% {
-                transform: translate(-30vw, 40vh) rotate(180deg) scale(0.8);
-                opacity: 0.8;
-            }
-            75% {
-                transform: translate(20vw, -30vh) rotate(270deg) scale(1.1);
-                opacity: 0.5;
-            }
-            100% {
-                transform: translate(0, 0) rotate(360deg) scale(1);
-                opacity: 0.3;
-            }
+        .container {
+          padding: 1.5rem;
         }
-        
-        @keyframes logo-float {
-            0%, 100% { transform: translateY(0) scale(1); }
-            50% { transform: translateY(-15px) scale(1.02); }
+        .power-logo {
+          width: 120px;
+          bottom: 20px;
+          right: 20px;
         }
-        
-        @keyframes float-around {
-            0% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 0.7; }
-            25% { transform: translate(40vw, 30vh) rotate(90deg) scale(1.2); opacity: 0.4; }
-            50% { transform: translate(20vw, 60vh) rotate(180deg) scale(0.8); opacity: 0.8; }
-            75% { transform: translate(-40vw, 30vh) rotate(270deg) scale(1.1); opacity: 0.5; }
-            100% { transform: translate(0, 0) rotate(360deg) scale(1); opacity: 0.7; }
-        }
-        
-        @keyframes beam-sweep {
-            0% { 
-                transform: rotate(0deg) translateX(-100vh) scaleX(0.5);
-                opacity: 0;
-            }
-            10% {
-                opacity: 0.7;
-            }
-            50% {
-                transform: rotate(180deg) translateX(100vh) scaleX(2);
-                opacity: 0.3;
-            }
-            100% { 
-                transform: rotate(360deg) translateX(-100vh) scaleX(0.5);
-                opacity: 0;
-            }
-        }
-        
-        @keyframes container-pulse {
-            0%, 100% { box-shadow: 0 0 50px rgba(39, 195, 253, 0.1); }
-            50% { box-shadow: 0 0 70px rgba(39, 195, 253, 0.3); }
-        }
-        
-        @keyframes message-pulse {
-            0%, 100% { opacity: 0.7; }
-            50% { opacity: 1; }
-        }
-        
-        @media (max-width: 768px) {
-            .logo-svg { width: 300px; }
-            .message { font-size: 1.5rem; }
-            .instruction { font-size: 1rem; }
-            .power-logo { width: 150px; }
-        }
-        
-        @media (max-width: 480px) {
-            .logo-svg { width: 250px; }
-            .message { font-size: 1.3rem; }
-            .container { padding: 1.5rem; }
-            .power-logo { width: 120px; bottom: 20px; right: 20px; }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="overlay"></div>
-    
-    <div class="particle" style="width: 300px; height: 300px; top: -150px; left: -150px; animation-delay: 0s;"></div>
-    <div class="particle" style="width: 200px; height: 200px; bottom: -100px; right: -100px; animation-delay: -5s;"></div>
-    
-    <div class="beam" style="top: 20%; width: 100vh; animation-delay: 0s;"></div>
-    <div class="beam" style="top: 40%; width: 120vh; animation-delay: -4s;"></div>
-    <div class="beam" style="top: 60%; width: 80vh; animation-delay: -8s;"></div>
-    
+
+    <div
+      class="particle"
+      style="
+        width: 300px;
+        height: 300px;
+        top: -150px;
+        left: -150px;
+        animation-delay: 0s;
+      "
+    ></div>
+    <div
+      class="particle"
+      style="
+        width: 200px;
+        height: 200px;
+        bottom: -100px;
+        right: -100px;
+        animation-delay: -5s;
+      "
+    ></div>
+
+    <div class="beam" style="top: 20%; width: 100vh; animation-delay: 0s"></div>
+    <div
+      class="beam"
+      style="top: 40%; width: 120vh; animation-delay: -4s"
+    ></div>
+    <div class="beam" style="top: 60%; width: 80vh; animation-delay: -8s"></div>
+
     <div class="power-logo">
-        <img src="./mainLogo.png" alt="BX Beam Power Logo" style="width: 100%; height: auto;">
+      <img
+        src="./mainLogo.png"
+        alt="BX Beam Power Logo"
+        style="width: 100%; height: auto"
+      />
     </div>
-    
+
     <!-- Main content container -->
     <div class="container">
-        <div class="logo-container">
-            <svg class="logo-svg" viewBox="0 0 203.29953 29.431925" xmlns="http://www.w3.org/2000/svg">
-                <g transform="translate(-7.0449502,-89.098883)">
-                    <g transform="translate(1.8141932,52.611602)">
-                        <g transform="matrix(0.25832539,0,0,0.26458333,-107.32661,-60.022458)" style="fill:#ffffff">
-                            <text font-family="Aptos, Aptos_MSFontService, sans-serif" font-weight="700" font-size="153px" transform="translate(421.525,476)" dx="0 -15" style="fill:#ffffff">BX <tspan style="letter-spacing:0px;fill:#ffffff" /></text>
-                        </g>
-                        <g transform="matrix(0.25832539,0,0,0.26458333,-153.34879,-33.263109)" style="fill:#ffffff">
-                            <text font-family="Aptos, Aptos_MSFontService, sans-serif" font-weight="700" font-size="153px" x="975.21106" y="374.8623" style="fill:#ffffff"><tspan style="letter-spacing:0px;fill:#ffffff" dx="0 -10 -25 -10">BEAM</tspan></text>
-                        </g>
-                        <g transform="matrix(1,0,0,1,-25,-65)">
-                            <path class="logo-shape shape-1" style="fill:#27c3fd;fill-opacity:1;stroke:#27c3fd;stroke-width:0.1;stroke-dasharray:none;stroke-opacity:1" d="m 78.880959,97.899048 18.382701,6.755312 -6.12757,6.75531 z" />
-                            <path class="logo-shape shape-2" style="fill:#1a58a4;fill-opacity:0.839216;stroke:#b07ec6;stroke-width:0.1;stroke-dasharray:none;stroke-opacity:0.811765" d="m 78.880959,124.92029 18.382701,-6.75531 -6.12757,-6.75531 z" />
-                            <path class="logo-shape shape-3" style="fill:#575fb2;fill-opacity:1;stroke:#575fb2;stroke-width:0.1;stroke-dasharray:none;stroke-opacity:1" d="m 115.64624,111.40992 -18.382698,6.75531 6.127568,6.75531 z" />
-                            <path class="logo-shape shape-4" style="fill:#087bc1;fill-opacity:1;stroke:#087bc1;stroke-width:0.1;stroke-dasharray:none;stroke-opacity:1" d="m 115.64621,111.41785 -18.382703,-6.75531 6.127573,-6.755314 z" />
-                            <path class="logo-shape shape-5" style="fill:#1aa4e3;fill-opacity:1;stroke:#1aa4e3;stroke-width:0.1;stroke-dasharray:none;stroke-opacity:1" d="m 78.880973,97.898934 24.510257,1.16e-4 -6.127723,6.75529 z" />
-                            <path class="logo-shape shape-6" style="fill:#a966c4;fill-opacity:0.996078;stroke:#a966c4;stroke-width:0.1;stroke-dasharray:none;stroke-opacity:0.996078" d="m 78.881126,124.92039 24.510254,-1.2e-4 -6.12772,-6.75529 z" />
-                            <path class="logo-shape shape-7" style="fill:#0065af;fill-opacity:1;stroke:#0065af;stroke-width:0.1;stroke-dasharray:none;stroke-opacity:1" d="m 115.64635,111.40973 -24.510253,-1.2e-4 6.12772,-6.75529 z" />
-                            <path class="logo-shape shape-8" style="fill:#005096;fill-opacity:1;stroke:#005096;stroke-width:0.1;stroke-dasharray:none;stroke-opacity:1" d="m 115.64635,111.40961 -24.510253,1.2e-4 6.12772,6.75529 z" />
-                        </g>
-                    </g>
-                </g>
-            </svg>
-        </div>
-        
-        <p class="message">Screen is Deactivated</p>
-        <p class="message">Please activate this screen to circulate your content.</p>
-        
-        <p class="instruction">BX Beam System - Secure Access Platform</p>
+      <div class="logo-container">
+        <svg
+          class="logo-svg"
+          viewBox="0 0 203.29953 29.431925"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <g transform="translate(-7.0449502,-89.098883)">
+            <g transform="translate(1.8141932,52.611602)">
+              <g
+                transform="matrix(0.25832539,0,0,0.26458333,-107.32661,-60.022458)"
+                style="fill: #ffffff"
+              >
+                <text
+                  font-family="Aptos, Aptos_MSFontService, sans-serif"
+                  font-weight="700"
+                  font-size="153px"
+                  transform="translate(421.525,476)"
+                  dx="0 -15"
+                  style="fill: #ffffff"
+                >
+                  BX
+                  <tspan style="letter-spacing: 0px; fill: #ffffff" />
+                </text>
+              </g>
+              <g
+                transform="matrix(0.25832539,0,0,0.26458333,-153.34879,-33.263109)"
+                style="fill: #ffffff"
+              >
+                <text
+                  font-family="Aptos, Aptos_MSFontService, sans-serif"
+                  font-weight="700"
+                  font-size="153px"
+                  x="975.21106"
+                  y="374.8623"
+                  style="fill: #ffffff"
+                >
+                  <tspan
+                    style="letter-spacing: 0px; fill: #ffffff"
+                    dx="0 -10 -25 -10"
+                  >
+                    BEAM
+                  </tspan>
+                </text>
+              </g>
+              <g transform="matrix(1,0,0,1,-25,-65)">
+                <path
+                  class="logo-shape shape-1"
+                  style="
+                    fill: #27c3fd;
+                    fill-opacity: 1;
+                    stroke: #27c3fd;
+                    stroke-width: 0.1;
+                    stroke-dasharray: none;
+                    stroke-opacity: 1;
+                  "
+                  d="m 78.880959,97.899048 18.382701,6.755312 -6.12757,6.75531 z"
+                />
+                <path
+                  class="logo-shape shape-2"
+                  style="
+                    fill: #1a58a4;
+                    fill-opacity: 0.839216;
+                    stroke: #b07ec6;
+                    stroke-width: 0.1;
+                    stroke-dasharray: none;
+                    stroke-opacity: 0.811765;
+                  "
+                  d="m 78.880959,124.92029 18.382701,-6.75531 -6.12757,-6.75531 z"
+                />
+                <path
+                  class="logo-shape shape-3"
+                  style="
+                    fill: #575fb2;
+                    fill-opacity: 1;
+                    stroke: #575fb2;
+                    stroke-width: 0.1;
+                    stroke-dasharray: none;
+                    stroke-opacity: 1;
+                  "
+                  d="m 115.64624,111.40992 -18.382698,6.75531 6.127568,6.75531 z"
+                />
+                <path
+                  class="logo-shape shape-4"
+                  style="
+                    fill: #087bc1;
+                    fill-opacity: 1;
+                    stroke: #087bc1;
+                    stroke-width: 0.1;
+                    stroke-dasharray: none;
+                    stroke-opacity: 1;
+                  "
+                  d="m 115.64621,111.41785 -18.382703,-6.75531 6.127573,-6.755314 z"
+                />
+                <path
+                  class="logo-shape shape-5"
+                  style="
+                    fill: #1aa4e3;
+                    fill-opacity: 1;
+                    stroke: #1aa4e3;
+                    stroke-width: 0.1;
+                    stroke-dasharray: none;
+                    stroke-opacity: 1;
+                  "
+                  d="m 78.880973,97.898934 24.510257,1.16e-4 -6.127723,6.75529 z"
+                />
+                <path
+                  class="logo-shape shape-6"
+                  style="
+                    fill: #a966c4;
+                    fill-opacity: 0.996078;
+                    stroke: #a966c4;
+                    stroke-width: 0.1;
+                    stroke-dasharray: none;
+                    stroke-opacity: 0.996078;
+                  "
+                  d="m 78.881126,124.92039 24.510254,-1.2e-4 -6.12772,-6.75529 z"
+                />
+                <path
+                  class="logo-shape shape-7"
+                  style="
+                    fill: #0065af;
+                    fill-opacity: 1;
+                    stroke: #0065af;
+                    stroke-width: 0.1;
+                    stroke-dasharray: none;
+                    stroke-opacity: 1;
+                  "
+                  d="m 115.64635,111.40973 -24.510253,-1.2e-4 6.12772,-6.75529 z"
+                />
+                <path
+                  class="logo-shape shape-8"
+                  style="
+                    fill: #005096;
+                    fill-opacity: 1;
+                    stroke: #005096;
+                    stroke-width: 0.1;
+                    stroke-dasharray: none;
+                    stroke-opacity: 1;
+                  "
+                  d="m 115.64635,111.40961 -24.510253,1.2e-4 6.12772,6.75529 z"
+                />
+              </g>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <p class="message">Screen is Deactivated</p>
+      <p class="message">
+        Please contact your administrator to activate this screen
+      </p>
+
+      <p class="instruction">BX Beam System - Secure Access Platform</p>
     </div>
 
     <script>
-        function createParticles() {
-            const body = document.querySelector('body');
-            const colors = [
-                'rgba(39, 195, 253, 0.15)',
-                'rgba(26, 88, 164, 0.15)',
-                'rgba(87, 95, 178, 0.15)',
-                'rgba(8, 123, 193, 0.15)',
-                'rgba(26, 164, 227, 0.15)',
-                'rgba(169, 102, 196, 0.15)'
-            ];
-            
-            for (let i = 0; i < 20; i++) {
-                const size = Math.random() * 100 + 50;
-                const particle = document.createElement('div');
-                particle.classList.add('particle');
-                particle.style.width = `${size}px`;
-                particle.style.height = `${size}px`;
-                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
-                particle.style.top = `${Math.random() * 100}%`;
-                particle.style.left = `${Math.random() * 100}%`;
-                particle.style.animationDuration = `${Math.random() * 30 + 20}s`;
-                particle.style.animationDelay = `-${Math.random() * 20}s`;
-                
-                body.appendChild(particle);
-            }
-            
-            for (let i = 0; i < 5; i++) {
-                const beam = document.createElement('div');
-                beam.classList.add('beam');
-                beam.style.top = `${Math.random() * 100}%`;
-                beam.style.width = `${Math.random() * 100 + 50}vh`;
-                beam.style.animationDuration = `${Math.random() * 10 + 15}s`;
-                beam.style.animationDelay = `-${Math.random() * 15}s`;
-                
-                body.appendChild(beam);
-            }
-            
-            createFloatingShapes();
-        }
-        
-        function createFloatingShapes() {
-            const body = document.querySelector('body');
-            const shapeTypes = ['triangle', 'square', 'circle', 'diamond'];
-            const colors = [
-                '#27c3fd', '#1a58a4', '#575fb2', '#087bc1', 
-                '#1aa4e3', '#a966c4', '#0065af', '#005096'
-            ];
-            
-            for (let i = 0; i < 30; i++) {
-                const shape = document.createElement('div');
-                shape.classList.add('floating-shape');
-                
-                const size = Math.random() * 40 + 20;
-                const shapeType = shapeTypes[Math.floor(Math.random() * shapeTypes.length)];
-                const color = colors[Math.floor(Math.random() * colors.length)];
-                
-                if (shapeType === 'triangle') {
-                    shape.style.width = '0';
-                    shape.style.height = '0';
-                    shape.style.borderLeft = `${size/2}px solid transparent`;
-                    shape.style.borderRight = `${size/2}px solid transparent`;
-                    shape.style.borderBottom = `${size}px solid ${color}`;
-                } else if (shapeType === 'square') {
-                    shape.style.width = `${size}px`;
-                    shape.style.height = `${size}px`;
-                    shape.style.backgroundColor = color;
-                } else if (shapeType === 'circle') {
-                    shape.style.width = `${size}px`;
-                    shape.style.height = `${size}px`;
-                    shape.style.borderRadius = '50%';
-                    shape.style.backgroundColor = color;
-                } else if (shapeType === 'diamond') {
-                    shape.style.width = `${size}px`;
-                    shape.style.height = `${size}px`;
-                    shape.style.backgroundColor = color;
-                    shape.style.transform = 'rotate(45deg)';
-                }
-                
-                shape.style.opacity = '0.6';
-                shape.style.top = `${Math.random() * 100}%`;
-                shape.style.left = `${Math.random() * 100}%`;
-                shape.style.animationDuration = `${Math.random() * 15 + 15}s`;
-                shape.style.animationDelay = `-${Math.random() * 20}s`;
-                
-                body.appendChild(shape);
-            }
-        }
-                
-        window.addEventListener('load', function() {
-            createParticles();
-            randomizeLogoAnimations();
-            
-            setInterval(() => {
-                const shapes = document.querySelectorAll('.logo-shape');
-                shapes.forEach(shape => {
-                    shape.style.animationPlayState = 'paused';
-                });
-                
-                setTimeout(() => {
-                    shapes.forEach(shape => {
-                        shape.style.animationPlayState = 'running';
-                        const delay = Math.random() * 5;
-                        const duration = 3 + Math.random() * 2;
-                        shape.style.animationDelay = `${delay}s`;
-                        shape.style.animationDuration = `${duration}s`;
-                    });
-                }, 1000); 
-            }, 8000); 
-        });
+      function createParticles() {
+        const body = document.querySelector("body");
+        const colors = [
+          "rgba(39, 195, 253, 0.15)",
+          "rgba(26, 88, 164, 0.15)",
+          "rgba(87, 95, 178, 0.15)",
+          "rgba(8, 123, 193, 0.15)",
+          "rgba(26, 164, 227, 0.15)",
+          "rgba(169, 102, 196, 0.15)",
+        ];
 
-     </script>
+        for (let i = 0; i < 20; i++) {
+          const size = Math.random() * 100 + 50;
+          const particle = document.createElement("div");
+          particle.classList.add("particle");
+          particle.style.width = `${size}px`;
+          particle.style.height = `${size}px`;
+          particle.style.background =
+            colors[Math.floor(Math.random() * colors.length)];
+          particle.style.top = `${Math.random() * 100}%`;
+          particle.style.left = `${Math.random() * 100}%`;
+          particle.style.animationDuration = `${Math.random() * 30 + 20}s`;
+          particle.style.animationDelay = `-${Math.random() * 20}s`;
 
-</body>
+          body.appendChild(particle);
+        }
+
+        for (let i = 0; i < 5; i++) {
+          const beam = document.createElement("div");
+          beam.classList.add("beam");
+          beam.style.top = `${Math.random() * 100}%`;
+          beam.style.width = `${Math.random() * 100 + 50}vh`;
+          beam.style.animationDuration = `${Math.random() * 10 + 15}s`;
+          beam.style.animationDelay = `-${Math.random() * 15}s`;
+
+          body.appendChild(beam);
+        }
+
+        createFloatingShapes();
+      }
+
+      function createFloatingShapes() {
+        const body = document.querySelector("body");
+        const shapeTypes = ["triangle", "square", "circle", "diamond"];
+        const colors = [
+          "#27c3fd",
+          "#1a58a4",
+          "#575fb2",
+          "#087bc1",
+          "#1aa4e3",
+          "#a966c4",
+          "#0065af",
+          "#005096",
+        ];
+
+        for (let i = 0; i < 30; i++) {
+          const shape = document.createElement("div");
+          shape.classList.add("floating-shape");
+
+          const size = Math.random() * 40 + 20;
+          const shapeType =
+            shapeTypes[Math.floor(Math.random() * shapeTypes.length)];
+          const color = colors[Math.floor(Math.random() * colors.length)];
+
+          if (shapeType === "triangle") {
+            shape.style.width = "0";
+            shape.style.height = "0";
+            shape.style.borderLeft = `${size / 2}px solid transparent`;
+            shape.style.borderRight = `${size / 2}px solid transparent`;
+            shape.style.borderBottom = `${size}px solid ${color}`;
+          } else if (shapeType === "square") {
+            shape.style.width = `${size}px`;
+            shape.style.height = `${size}px`;
+            shape.style.backgroundColor = color;
+          } else if (shapeType === "circle") {
+            shape.style.width = `${size}px`;
+            shape.style.height = `${size}px`;
+            shape.style.borderRadius = "50%";
+            shape.style.backgroundColor = color;
+          } else if (shapeType === "diamond") {
+            shape.style.width = `${size}px`;
+            shape.style.height = `${size}px`;
+            shape.style.backgroundColor = color;
+            shape.style.transform = "rotate(45deg)";
+          }
+
+          shape.style.opacity = "0.6";
+          shape.style.top = `${Math.random() * 100}%`;
+          shape.style.left = `${Math.random() * 100}%`;
+          shape.style.animationDuration = `${Math.random() * 15 + 15}s`;
+          shape.style.animationDelay = `-${Math.random() * 20}s`;
+
+          body.appendChild(shape);
+        }
+      }
+
+      window.addEventListener("load", function () {
+        createParticles();
+        randomizeLogoAnimations();
+
+        setInterval(() => {
+          const shapes = document.querySelectorAll(".logo-shape");
+          shapes.forEach((shape) => {
+            shape.style.animationPlayState = "paused";
+          });
+
+          setTimeout(() => {
+            shapes.forEach((shape) => {
+              shape.style.animationPlayState = "running";
+              const delay = Math.random() * 5;
+              const duration = 3 + Math.random() * 2;
+              shape.style.animationDelay = `${delay}s`;
+              shape.style.animationDuration = `${duration}s`;
+            });
+          }, 1000);
+        }, 8000);
+      });
+    </script>
+  </body>
 </html>

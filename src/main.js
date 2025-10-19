@@ -1,5 +1,6 @@
 const { app, BrowserWindow, globalShortcut, dialog } = require("electron");
 const path = require("path");
+const AutoLaunch = require("auto-launch");
 
 // Import IPC handlers
 const IPCHandlers = require("./handlers/handler.js");
@@ -96,6 +97,28 @@ const createWindow = () => {
   ipcHandlers.setMainWindow(mainWindow);
 };
 
+const setupAutoLaunch = () => {
+  const exePath = app.isPackaged
+    ? process.execPath
+    : path.join(__dirname, "..", "..", "node_modules", ".bin", "electron"); // dev
+
+  const autoLauncher = new AutoLaunch({
+    name: "BX Beam",
+    path: exePath,
+  });
+
+  autoLauncher.isEnabled().then((isEnabled) => {
+    if (!isEnabled) {
+      autoLauncher
+        .enable()
+        .then(() => console.log("Auto-launch enabled on startup"))
+        .catch((err) => console.error("Failed to enable auto-launch:", err));
+    } else {
+      console.log("Auto-launch already enabled.");
+    }
+  });
+};
+
 // Register global shortcuts
 const registerGlobalShortcuts = () => {
   const windowHandlers = ipcHandlers.getWindowHandlers();
@@ -172,6 +195,7 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+  setupAutoLaunch();
 });
 
 // Quit when all windows are closed, except on macOS.
