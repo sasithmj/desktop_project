@@ -1,4 +1,9 @@
-module.exports = function createOnlineWatcher(handler, scrId, onOnline) {
+module.exports = function createOnlineWatcher(
+  handler,
+  scrId,
+  onOnline,
+  onStartPlaybackTimer
+) {
   let lastOnlineStatus = null;
 
   const interval = setInterval(async () => {
@@ -21,6 +26,9 @@ module.exports = function createOnlineWatcher(handler, scrId, onOnline) {
           await handler.updateRefreshInterval(scrId);
           if (typeof onOnline === "function") onOnline();
           await handler.checkAndUpdateContent(scrId, true);
+          // Start playback timer when internet is restored
+          if (typeof onStartPlaybackTimer === "function")
+            onStartPlaybackTimer();
         }
         lastOnlineStatus = online;
       }

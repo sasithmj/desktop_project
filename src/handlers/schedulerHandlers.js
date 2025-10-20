@@ -10,6 +10,8 @@ const createDbWatcher = require("./scheduler/dbWatcher.js");
 const createOnlineWatcher = require("./scheduler/onlineWatcher.js");
 const createDeviceWatcher = require("./scheduler/deviceWatcher.js");
 const { clampInterval } = require("./scheduler/utils.js");
+const ntpClient = require("ntp-client");
+const { DateTime } = require("luxon");
 
 class SchedulerHandlers {
   constructor() {
@@ -27,7 +29,20 @@ class SchedulerHandlers {
     this.contentHashMap = new Map(); // Track content hash to detect changes
     this.isUpdatingWindow = new Map(); // Prevent concurrent window updates
     this.lastCheckTime = new Map(); // Track last check time to prevent rapid calls
+    this.isDeviceReactivating = new Map(); // Track when device reactivation is in progress
     this.timeOffsetMs = 0; // Server time offset (serverTime - localTime)
+    // Helper: parse DB timestamps that are Sri Lanka local time (Asia/Colombo)
+    this.parseSriLankaDate = (isoString) => {
+      if (!isoString) return null;
+      try {
+        const dt = DateTime.fromISO(String(isoString), {
+          zone: "Asia/Colombo",
+        });
+        return dt.isValid ? dt.toJSDate() : null;
+      } catch (e) {
+        return null;
+      }
+    };
     this.setupHandlers();
   }
 
@@ -43,33 +58,35 @@ class SchedulerHandlers {
   // Syncs local time offset against WorldTimeAPI
   async syncTimeOffset() {
     try {
-      const response = await fetch(
-        "https://worldtimeapi.org/api/timezone/Asia/Colombo"
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      const serverTime = new Date(data.datetime);
-      const localTime = new Date();
-
-      if (!isNaN(serverTime.getTime())) {
-        this.timeOffsetMs = serverTime.getTime() - localTime.getTime();
-        console.log(
-          `Time sync: server=${serverTime.toISOString()}, local=${localTime.toISOString()}, offsetMs=${
-            this.timeOffsetMs
-          }`
-        );
-        return true;
-      } else {
-        console.warn("Time sync: invalid server time format");
+      const ntpTime = await this.getNtpTime(); // Get accurate network time
+      if (!ntpTime || isNaN(ntpTime.getTime())) {
+        console.warn("Time sync (NTP): invalid time received");
         return false;
       }
+
+      // Compute offset relative to the machine's current system time (Date.now())
+      const localNowMs = Date.now();
+      this.timeOffsetMs = ntpTime.getTime() - localNowMs;
+
+      console.log(
+        `Time sync (NTP): server=${ntpTime.toISOString()}, local=${new Date(
+          localNowMs
+        ).toISOString()}, offsetMs=${this.timeOffsetMs}`
+      );
+      return true;
     } catch (error) {
-      console.warn("Time sync error:", error.message || error);
-      return false;
+      console.warn("NTP time sync error:", error.message || error);
     }
+  }
+
+  async getNtpTime() {
+    return new Promise((resolve, reject) => {
+      ntpClient.getNetworkTime("time.google.com", 123, (err, date) => {
+        if (err) return reject(err);
+        console.log("Accurate NTP time:", date.toString());
+        resolve(date);
+      });
+    });
   }
 
   setupHandlers() {
@@ -104,12 +121,14 @@ class SchedulerHandlers {
             const refreshInfo = await databaseService.getNextRefreshTime(scrId);
 
             if (refreshInfo && refreshInfo.NxtRefreshTime) {
-              const refreshTime = new Date(refreshInfo.NxtRefreshTime);
-              const now = new Date();
+              const refreshTime =
+                this.parseSriLankaDate(refreshInfo.NxtRefreshTime) ||
+                new Date(refreshInfo.NxtRefreshTime);
+              const now = this.now();
               refreshInterval = refreshTime.getTime() - now.getTime();
 
               console.log("===================Refresh Time:", refreshTime);
-              console.log("===================Current Time:", now);
+              console.log("===================Server Time:", now);
               console.log(
                 "===================Calculated refresh interval (ms):",
                 refreshInterval
@@ -386,15 +405,17 @@ class SchedulerHandlers {
       const refreshInfo = await databaseService.getNextRefreshTime(scrId);
 
       if (refreshInfo && refreshInfo.NxtRefreshTime) {
-        const refreshTime = new Date(refreshInfo.NxtRefreshTime);
-        const now = new Date();
+        const refreshTime =
+          this.parseSriLankaDate(refreshInfo.NxtRefreshTime) ||
+          new Date(refreshInfo.NxtRefreshTime);
+        const now = this.now();
         let refreshInterval = refreshTime.getTime() - now.getTime();
 
         console.log(
-          "Updating new New refresh===================Refresh Time:",
+          "Updating new refresh===================Refresh Time:",
           refreshTime
         );
-        console.log("===================Current Time:", now);
+        console.log("===================Server Time:", now);
         console.log(
           "===================Calculated refresh interval (ms):",
           refreshInterval
@@ -508,7 +529,9 @@ class SchedulerHandlers {
     // If it's scheduled content, check if it's still within time range
     if (currentContent.ScheduleType === "Scheduled") {
       const now = this.now();
-      const start = new Date(currentContent.StartTime);
+      const start =
+        this.parseSriLankaDate(currentContent.StartTime) ||
+        new Date(currentContent.StartTime);
       const end = new Date(
         start.getTime() + (currentContent.DurMin || 60) * 1000
       );
@@ -551,6 +574,8 @@ class SchedulerHandlers {
         }
         let intervalMs = this.refreshIntervals.get(scrId);
         intervalMs = clampInterval(intervalMs, 60000);
+
+        // Start main refresh interval immediately, but with device reactivation protection
         const mainRefreshInterval = setInterval(async () => {
           try {
             console.log(
@@ -562,38 +587,39 @@ class SchedulerHandlers {
             const isDeviceActive = deviceStatus && deviceStatus.isActive;
 
             if (!isDeviceActive) {
-              if (lastDeviceStatus !== false) {
-                console.warn(
-                  `[${scrId}] Device deactivated - showing deactivation message`
-                );
-                const deactivatedContent =
-                  this.getDeviceDeactivatedContent(scrId);
-                this.currentPlayingContent.set(scrId, deactivatedContent);
-
-                await this.safeUpdateWindow(scrId, deactivatedContent.Source);
-              }
+              // Device is deactivated - skip main refresh since device watcher handles this
+              console.log(
+                `[${scrId}] Device deactivated - skipping main refresh (device watcher handles this)`
+              );
               lastDeviceStatus = false;
               return; // skip content update if device is deactivated
             }
 
-            // Device active
-            const wasOffline = this.isOfflineMode.get(scrId);
-            const wasDeactivated = lastDeviceStatus === false;
+            // Device active - only do normal refresh here
+            // Online/reactivation transitions are handled by watchers to avoid duplication
 
-            if (wasOffline || wasDeactivated) {
+            // Skip if device reactivation is in progress to avoid interference
+            if (this.isDeviceReactivating.get(scrId)) {
               console.log(
-                `[${scrId}] Device reactivated or came online — forcing reload of live content`
+                `[${scrId}] Skipping main refresh - device reactivation in progress`
               );
-              this.isOfflineMode.set(scrId, false);
-              this.cachedContentList.delete(scrId); // Force fresh fetch
-              await this.checkAndUpdateContent(scrId, true);
-            } else {
-              // Normal online operation - refresh content
-              console.log(
-                `[${scrId}] Normal refresh - checking and updating content`
-              );
+              lastDeviceStatus = true;
+              return;
+            }
+
+            console.log(
+              `[${scrId}] Normal refresh - checking for content changes`
+            );
+            // Check if content has changed before forcing update
+            const hasChanged = await this.hasContentChanged(scrId);
+            if (hasChanged.changed) {
+              console.log(`[${scrId}] Content changed - updating`);
               this.cachedContentList.delete(scrId); // Force fresh fetch on main refresh
               await this.checkAndUpdateContent(scrId, true);
+            } else {
+              console.log(
+                `[${scrId}] No content changes detected - skipping update`
+              );
             }
 
             lastDeviceStatus = true;
@@ -614,34 +640,6 @@ class SchedulerHandlers {
 
       // --- MAIN CONTENT REFRESH (based on next refresh time from DB) ---
       restartMainRefresh();
-
-      // --- ONLINE/OFFLINE WATCHER ---
-      const onlineWatcherObj = createOnlineWatcher(
-        this,
-        scrId,
-        restartMainRefresh
-      );
-      this.schedulerIntervals.set(
-        scrId + "_onlineWatcher",
-        onlineWatcherObj.interval
-      );
-
-      // --- DEVICE STATUS WATCHER (checks every 60 seconds) ---
-      const deviceWatcherObj = createDeviceWatcher(
-        this,
-        scrId,
-        restartMainRefresh
-      );
-      this.schedulerIntervals.set(
-        scrId + "_deviceWatcher",
-        deviceWatcherObj.interval
-      );
-
-      // --- TIME SYNC (every 10 minutes) ---
-      const timeSyncInterval = setInterval(() => {
-        this.syncTimeOffset();
-      }, 10 * 60 * 1000);
-      this.schedulerIntervals.set(scrId + "_timeSync", timeSyncInterval);
 
       // --- CONTENT PLAYBACK TIMER (dynamic based on content duration) ---
       const scheduleNextContentCheck = async () => {
@@ -674,9 +672,11 @@ class SchedulerHandlers {
               .filter((c) => c.ScheduleType === "Scheduled")
               .map((item) => ({
                 ...item,
-                start: new Date(item.StartTime),
+                start:
+                  this.parseSriLankaDate(item.StartTime) ||
+                  (item.StartTime ? new Date(item.StartTime) : null),
               }))
-              .filter((item) => item.start > now)
+              .filter((item) => item.start && item.start > now)
               .sort((a, b) => a.start - b.start);
 
             if (scheduledItems.length > 0) {
@@ -710,6 +710,15 @@ class SchedulerHandlers {
           const timer = setTimeout(async () => {
             // Double-check scheduler is still running before executing
             if (this.schedulerStatus.get(scrId) === "running") {
+              // Skip if device reactivation is in progress to avoid duplication
+              if (this.isDeviceReactivating.get(scrId)) {
+                console.log(
+                  `[${scrId}] Skipping content timer - device reactivation in progress`
+                );
+                scheduleNextContentCheck(); // Schedule next check
+                return;
+              }
+
               await this.checkAndUpdateContent(scrId, false);
               scheduleNextContentCheck(); // Schedule next check
             }
@@ -730,11 +739,44 @@ class SchedulerHandlers {
         }
       };
 
+      // --- ONLINE/OFFLINE WATCHER ---
+      const onlineWatcherObj = createOnlineWatcher(
+        this,
+        scrId,
+        restartMainRefresh,
+        scheduleNextContentCheck
+      );
+      this.schedulerIntervals.set(
+        scrId + "_onlineWatcher",
+        onlineWatcherObj.interval
+      );
+
+      // --- DEVICE STATUS WATCHER (checks every 60 seconds) ---
+      const deviceWatcherObj = createDeviceWatcher(
+        this,
+        scrId,
+        restartMainRefresh,
+        scheduleNextContentCheck
+      );
+      this.schedulerIntervals.set(
+        scrId + "_deviceWatcher",
+        deviceWatcherObj.interval
+      );
+
+      // --- TIME SYNC (every 10 minutes) ---
+      const timeSyncInterval = setInterval(() => {
+        this.syncTimeOffset();
+      }, 10 * 60 * 1000);
+      this.schedulerIntervals.set(scrId + "_timeSync", timeSyncInterval);
+
       // --- INITIAL STARTUP ---
       (async () => {
         try {
           // Sync time with server first
-          await this.syncTimeOffset();
+          const timeSyncSuccess = await this.syncTimeOffset();
+          if (!timeSyncSuccess) {
+            console.warn(`[${scrId}] Time sync failed, using local time`);
+          }
 
           // Check internet first
           const online = await this.checkInternetConnection();
@@ -782,6 +824,10 @@ class SchedulerHandlers {
             // seed device watcher state
             if (deviceWatcherObj && deviceWatcherObj.setLastDevice) {
               deviceWatcherObj.setLastDevice(false);
+            }
+            // Seed online watcher with current online status to avoid false first-change after 30s
+            if (onlineWatcherObj && onlineWatcherObj.setLastOnline) {
+              onlineWatcherObj.setLastOnline(online);
             }
             return;
           }
@@ -957,6 +1003,7 @@ class SchedulerHandlers {
       this.defaultIndex.delete(scrId);
       this.currentPlayingContent.delete(scrId);
       this.isUpdatingWindow.delete(scrId);
+      this.isDeviceReactivating.delete(scrId);
 
       console.log(`Content scheduler stopped for screen ${scrId}`);
     } catch (error) {
@@ -981,7 +1028,7 @@ class SchedulerHandlers {
 
       // Prevent rapid repeated calls
       const lastCallTime = this.lastCheckTime?.get(scrId) || 0;
-      const now = Date.now();
+      const now = this.now();
       if (now - lastCallTime < 500 && !forceUpdate) {
         console.log(
           `[${scrId}] ⚠️ Rapid call detected (${
@@ -1024,13 +1071,21 @@ class SchedulerHandlers {
       // Separate scheduled and default content
       const scheduledItems = contentList
         .filter((c) => c.ScheduleType === "Scheduled")
-        .map((item) => ({
-          ...item,
-          start: new Date(item.StartTime),
-          end: new Date(
-            new Date(item.StartTime).getTime() + (item.DurMin || 60) * 1000
-          ),
-        }))
+        .map((item) => {
+          const start =
+            this.parseSriLankaDate(item.StartTime) ||
+            (item.StartTime ? new Date(item.StartTime) : null);
+          const end = start
+            ? new Date(start.getTime() + (item.DurMin || 60) * 1000)
+            : null;
+          console.log(
+            `[${item.ScrID || "sched"}] DEBUG Scheduled "${item.Title}" raw="${
+              item.StartTime
+            }" parsedStart=${start?.toISOString() || "null"}`
+          );
+          return { ...item, start, end };
+        })
+        .filter((a) => a.start && !isNaN(a.start.getTime()))
         .sort((a, b) => a.start - b.start);
 
       console.log(`[${scrId}] Scheduled items: ${scheduledItems.length}`);
@@ -1064,7 +1119,8 @@ class SchedulerHandlers {
           index = 0;
         }
         nextContent = defaultItems[index];
-        this.defaultIndex.set(scrId, index + 1);
+        // Increment index for next time, wrapping around if needed
+        this.defaultIndex.set(scrId, (index + 1) % defaultItems.length);
         console.log(
           `[${scrId}] Playing default content #${index}: ${nextContent.Title}`
         );

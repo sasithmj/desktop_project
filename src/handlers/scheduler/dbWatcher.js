@@ -8,6 +8,13 @@ module.exports = function createDbWatcher(handler, scrId) {
         return;
       }
 
+      if (handler.isDeviceReactivating.get(scrId)) {
+        console.log(
+          `[${scrId}] Skipping DB check - device reactivation in progress`
+        );
+        return;
+      }
+
       console.log(`[${scrId}] 🔍 Checking for database changes...`);
       const changeResult = await handler.hasContentChanged(scrId);
 
