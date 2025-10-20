@@ -29,12 +29,15 @@ class SchedulerHandlers {
     this.contentHashMap = new Map(); // Track content hash to detect changes
     this.isUpdatingWindow = new Map(); // Prevent concurrent window updates
     this.lastCheckTime = new Map(); // Track last check time to prevent rapid calls
+    this.isDeviceReactivating = new Map(); // Track when device reactivation is in progress
     this.timeOffsetMs = 0; // Server time offset (serverTime - localTime)
     // Helper: parse DB timestamps that are Sri Lanka local time (Asia/Colombo)
     this.parseSriLankaDate = (isoString) => {
       if (!isoString) return null;
       try {
-        const dt = DateTime.fromISO(String(isoString), { zone: "Asia/Colombo" });
+        const dt = DateTime.fromISO(String(isoString), {
+          zone: "Asia/Colombo",
+        });
         return dt.isValid ? dt.toJSDate() : null;
       } catch (e) {
         return null;
@@ -118,7 +121,9 @@ class SchedulerHandlers {
             const refreshInfo = await databaseService.getNextRefreshTime(scrId);
 
             if (refreshInfo && refreshInfo.NxtRefreshTime) {
-              const refreshTime = this.parseSriLankaDate(refreshInfo.NxtRefreshTime) || new Date(refreshInfo.NxtRefreshTime);
+              const refreshTime =
+                this.parseSriLankaDate(refreshInfo.NxtRefreshTime) ||
+                new Date(refreshInfo.NxtRefreshTime);
               const now = this.now();
               refreshInterval = refreshTime.getTime() - now.getTime();
 
@@ -400,9 +405,11 @@ class SchedulerHandlers {
       const refreshInfo = await databaseService.getNextRefreshTime(scrId);
 
       if (refreshInfo && refreshInfo.NxtRefreshTime) {
-  const refreshTime = this.parseSriLankaDate(refreshInfo.NxtRefreshTime) || new Date(refreshInfo.NxtRefreshTime);
-  const now = this.now();
-  let refreshInterval = refreshTime.getTime() - now.getTime();
+        const refreshTime =
+          this.parseSriLankaDate(refreshInfo.NxtRefreshTime) ||
+          new Date(refreshInfo.NxtRefreshTime);
+        const now = this.now();
+        let refreshInterval = refreshTime.getTime() - now.getTime();
 
         console.log(
           "Updating new refresh===================Refresh Time:",
@@ -522,7 +529,9 @@ class SchedulerHandlers {
     // If it's scheduled content, check if it's still within time range
     if (currentContent.ScheduleType === "Scheduled") {
       const now = this.now();
-      const start = this.parseSriLankaDate(currentContent.StartTime) || new Date(currentContent.StartTime);
+      const start =
+        this.parseSriLankaDate(currentContent.StartTime) ||
+        new Date(currentContent.StartTime);
       const end = new Date(
         start.getTime() + (currentContent.DurMin || 60) * 1000
       );
@@ -565,6 +574,8 @@ class SchedulerHandlers {
         }
         let intervalMs = this.refreshIntervals.get(scrId);
         intervalMs = clampInterval(intervalMs, 60000);
+
+        // Start main refresh interval immediately, but with device reactivation protection
         const mainRefreshInterval = setInterval(async () => {
           try {
             console.log(
@@ -576,27 +587,40 @@ class SchedulerHandlers {
             const isDeviceActive = deviceStatus && deviceStatus.isActive;
 
             if (!isDeviceActive) {
-              if (lastDeviceStatus !== false) {
-                console.warn(
-                  `[${scrId}] Device deactivated - showing deactivation message`
-                );
-                const deactivatedContent =
-                  this.getDeviceDeactivatedContent(scrId);
-                this.currentPlayingContent.set(scrId, deactivatedContent);
-
-                await this.safeUpdateWindow(scrId, deactivatedContent.Source);
-              }
+              // Device is deactivated - skip main refresh since device watcher handles this
+              console.log(
+                `[${scrId}] Device deactivated - skipping main refresh (device watcher handles this)`
+              );
               lastDeviceStatus = false;
               return; // skip content update if device is deactivated
             }
 
             // Device active - only do normal refresh here
             // Online/reactivation transitions are handled by watchers to avoid duplication
+
+            // Skip if device reactivation is in progress to avoid interference
+            if (this.isDeviceReactivating.get(scrId)) {
+              console.log(
+                `[${scrId}] Skipping main refresh - device reactivation in progress`
+              );
+              lastDeviceStatus = true;
+              return;
+            }
+
             console.log(
-              `[${scrId}] Normal refresh - checking and updating content`
+              `[${scrId}] Normal refresh - checking for content changes`
             );
-            this.cachedContentList.delete(scrId); // Force fresh fetch on main refresh
-            await this.checkAndUpdateContent(scrId, true);
+            // Check if content has changed before forcing update
+            const hasChanged = await this.hasContentChanged(scrId);
+            if (hasChanged.changed) {
+              console.log(`[${scrId}] Content changed - updating`);
+              this.cachedContentList.delete(scrId); // Force fresh fetch on main refresh
+              await this.checkAndUpdateContent(scrId, true);
+            } else {
+              console.log(
+                `[${scrId}] No content changes detected - skipping update`
+              );
+            }
 
             lastDeviceStatus = true;
           } catch (error) {
@@ -648,7 +672,9 @@ class SchedulerHandlers {
               .filter((c) => c.ScheduleType === "Scheduled")
               .map((item) => ({
                 ...item,
-                start: this.parseSriLankaDate(item.StartTime) || (item.StartTime ? new Date(item.StartTime) : null),
+                start:
+                  this.parseSriLankaDate(item.StartTime) ||
+                  (item.StartTime ? new Date(item.StartTime) : null),
               }))
               .filter((item) => item.start && item.start > now)
               .sort((a, b) => a.start - b.start);
@@ -684,6 +710,15 @@ class SchedulerHandlers {
           const timer = setTimeout(async () => {
             // Double-check scheduler is still running before executing
             if (this.schedulerStatus.get(scrId) === "running") {
+              // Skip if device reactivation is in progress to avoid duplication
+              if (this.isDeviceReactivating.get(scrId)) {
+                console.log(
+                  `[${scrId}] Skipping content timer - device reactivation in progress`
+                );
+                scheduleNextContentCheck(); // Schedule next check
+                return;
+              }
+
               await this.checkAndUpdateContent(scrId, false);
               scheduleNextContentCheck(); // Schedule next check
             }
@@ -789,6 +824,10 @@ class SchedulerHandlers {
             // seed device watcher state
             if (deviceWatcherObj && deviceWatcherObj.setLastDevice) {
               deviceWatcherObj.setLastDevice(false);
+            }
+            // Seed online watcher with current online status to avoid false first-change after 30s
+            if (onlineWatcherObj && onlineWatcherObj.setLastOnline) {
+              onlineWatcherObj.setLastOnline(online);
             }
             return;
           }
@@ -964,6 +1003,7 @@ class SchedulerHandlers {
       this.defaultIndex.delete(scrId);
       this.currentPlayingContent.delete(scrId);
       this.isUpdatingWindow.delete(scrId);
+      this.isDeviceReactivating.delete(scrId);
 
       console.log(`Content scheduler stopped for screen ${scrId}`);
     } catch (error) {
@@ -1032,10 +1072,16 @@ class SchedulerHandlers {
       const scheduledItems = contentList
         .filter((c) => c.ScheduleType === "Scheduled")
         .map((item) => {
-          const start = this.parseSriLankaDate(item.StartTime) || (item.StartTime ? new Date(item.StartTime) : null);
-          const end = start ? new Date(start.getTime() + (item.DurMin || 60) * 1000) : null;
+          const start =
+            this.parseSriLankaDate(item.StartTime) ||
+            (item.StartTime ? new Date(item.StartTime) : null);
+          const end = start
+            ? new Date(start.getTime() + (item.DurMin || 60) * 1000)
+            : null;
           console.log(
-            `[${item.ScrID || "sched"}] DEBUG Scheduled "${item.Title}" raw="${item.StartTime}" parsedStart=${start?.toISOString() || "null"}`
+            `[${item.ScrID || "sched"}] DEBUG Scheduled "${item.Title}" raw="${
+              item.StartTime
+            }" parsedStart=${start?.toISOString() || "null"}`
           );
           return { ...item, start, end };
         })
@@ -1073,7 +1119,8 @@ class SchedulerHandlers {
           index = 0;
         }
         nextContent = defaultItems[index];
-        this.defaultIndex.set(scrId, index + 1);
+        // Increment index for next time, wrapping around if needed
+        this.defaultIndex.set(scrId, (index + 1) % defaultItems.length);
         console.log(
           `[${scrId}] Playing default content #${index}: ${nextContent.Title}`
         );
