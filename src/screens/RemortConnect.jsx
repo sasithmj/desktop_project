@@ -203,6 +203,22 @@ export default function RemoteConnect({ onNavigate }) {
     return `${sec}s`;
   };
 
+  const formatCorrectedTime = (date) => {
+    if (!date) return "Syncing...";
+    try {
+      return new Intl.DateTimeFormat("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Colombo",
+      }).format(date);
+    } catch (error) {
+      console.warn("Failed to format corrected time:", error);
+      return date.toISOString().slice(11, 19); // Fallback to HH:MM:SS
+    }
+  };
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -229,9 +245,7 @@ export default function RemoteConnect({ onNavigate }) {
                 <Clock className="w-5 h-5 text-blue-600" />
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-blue-900 font-mono">
-                    {correctedTime
-                      ? correctedTime.toLocaleTimeString()
-                      : "Syncing..."}
+                    {formatCorrectedTime(correctedTime)}
                   </span>
                 </div>
               </div>

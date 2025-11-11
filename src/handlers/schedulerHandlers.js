@@ -31,6 +31,7 @@ class SchedulerHandlers {
     this.lastCheckTime = new Map(); // Track last check time to prevent rapid calls
     this.isDeviceReactivating = new Map(); // Track when device reactivation is in progress
     this.timeOffsetMs = 0; // Server time offset (serverTime - localTime)
+    this.lastTimeSyncAtMs = 0; // Last successful time sync timestamp
     // Helper: parse DB timestamps that are Sri Lanka local time (Asia/Colombo)
     this.parseSriLankaDate = (isoString) => {
       if (!isoString) return null;
@@ -67,6 +68,7 @@ class SchedulerHandlers {
       // Compute offset relative to the machine's current system time (Date.now())
       const localNowMs = Date.now();
       this.timeOffsetMs = ntpTime.getTime() - localNowMs;
+      this.lastTimeSyncAtMs = localNowMs;
 
       console.log(
         `Time sync (NTP): server=${ntpTime.toISOString()}, local=${new Date(
@@ -221,6 +223,20 @@ class SchedulerHandlers {
     // Get corrected time (synced with Google)
     ipcMain.handle("get-corrected-time", async (event) => {
       try {
+        const STALE_SYNC_MS = 11 * 60 * 1000; // Slightly longer than scheduled sync
+        const needsInitialSync =
+          !this.lastTimeSyncAtMs || this.timeOffsetMs === 0;
+        const isStale =
+          Date.now() - (this.lastTimeSyncAtMs || 0) > STALE_SYNC_MS;
+
+        if (needsInitialSync || isStale) {
+          try {
+            await this.syncTimeOffset();
+          } catch (syncError) {
+            console.warn("Immediate time sync failed:", syncError);
+          }
+        }
+
         const correctedTime = this.now();
         return {
           success: true,
