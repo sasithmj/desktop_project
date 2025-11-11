@@ -94,6 +94,7 @@ class SchedulerHandlers {
     ipcMain.removeHandler("start-content-scheduler");
     ipcMain.removeHandler("stop-content-scheduler");
     ipcMain.removeHandler("get-scheduler-status");
+    ipcMain.removeHandler("get-corrected-time");
     ipcMain.removeHandler("get-current-content-for-display");
     ipcMain.removeHandler("validate-content-schedule");
     ipcMain.removeHandler("get-scheduler-statistics");
@@ -210,6 +211,23 @@ class SchedulerHandlers {
         };
       } catch (error) {
         console.error("Error getting scheduler status:", error);
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+    });
+
+    // Get corrected time (synced with Google)
+    ipcMain.handle("get-corrected-time", async (event) => {
+      try {
+        const correctedTime = this.now();
+        return {
+          success: true,
+          data: correctedTime.toISOString(),
+        };
+      } catch (error) {
+        console.error("Error getting corrected time:", error);
         return {
           success: false,
           error: error.message,

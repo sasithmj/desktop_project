@@ -186,11 +186,14 @@ class WindowHandlers {
 
     // Micro-delay load to ensure interceptor + clear are settled (fixes initial run timing)
     setTimeout(() => {
-      // NEW: Load with strict referrer policy to mimic iframe attribute
       this.displayWindow.loadURL(finalUrl, {
-        referrer: {
-          policy: "strict-origin-when-cross-origin", // Strips path/query for cross-origin, keeps origin
+        httpReferrer: {
+          // Correct key (was 'referrer')
+          url: "https://www.youtube-nocookie.com/", // Match no-cookie domain
+          policy: "no-referrer-when-downgrade", // Try this first; alternative: "unsafe-url"
         },
+        userAgent:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36", // Mimic standard Chrome (update version as needed)
       });
     }, 100);
 
@@ -226,7 +229,7 @@ class WindowHandlers {
       }
     );
   }
-  
+
   // async createDisplayWindow(url) {
   //   //need this
   //   // Close existing display window and wait for it to be properly closed

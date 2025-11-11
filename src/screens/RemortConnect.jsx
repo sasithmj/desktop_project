@@ -12,6 +12,7 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Clock,
 } from "lucide-react";
 import { SchedulerClient } from "../utils/schedulerClient.js";
 
@@ -31,6 +32,7 @@ export default function RemoteConnect({ onNavigate }) {
   const [schedulerStatus, setSchedulerStatus] = useState("stopped");
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [correctedTime, setCorrectedTime] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -55,6 +57,7 @@ export default function RemoteConnect({ onNavigate }) {
     })();
   }, []);
 
+  // Fetch current content on mount and when scrId changes
   useEffect(() => {
     if (!deviceConfig?.scrId) return;
     (async () => {
@@ -79,6 +82,53 @@ export default function RemoteConnect({ onNavigate }) {
     })();
   }, [deviceConfig?.scrId]);
 
+  // Poll for content updates periodically
+  useEffect(() => {
+    if (!deviceConfig?.scrId || schedulerStatus !== "running") return;
+
+    const fetchCurrentContent = async () => {
+      try {
+        const res = await SchedulerClient.getCurrent(deviceConfig.scrId);
+        if (res?.data) {
+          setCurrentContent(res.data);
+          setLastUpdate(new Date());
+        }
+      } catch (error) {
+        console.error("Error fetching current content:", error);
+      }
+    };
+
+    // Fetch immediately
+    fetchCurrentContent();
+
+    // Poll every 30 seconds for content updates
+    const interval = setInterval(fetchCurrentContent, 30000);
+
+    return () => clearInterval(interval);
+  }, [deviceConfig?.scrId, schedulerStatus]);
+
+  // Fetch and update corrected time
+  useEffect(() => {
+    const updateCorrectedTime = async () => {
+      try {
+        const result = await window.electronAPI.getCorrectedTime();
+        if (result?.success) {
+          setCorrectedTime(new Date(result.data));
+        }
+      } catch (error) {
+        console.error("Error fetching corrected time:", error);
+      }
+    };
+
+    // Update immediately
+    updateCorrectedTime();
+
+    // Update every second
+    const interval = setInterval(updateCorrectedTime, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const toggleScheduler = async () => {
     try {
       if (schedulerStatus === "running") {
@@ -90,6 +140,17 @@ export default function RemoteConnect({ onNavigate }) {
           setSchedulerStatus("running");
           setConnectionStatus(res.isOffline ? "disconnected" : "connected");
           setLastUpdate(new Date());
+          // Refresh content immediately when scheduler starts
+          try {
+            const contentRes = await SchedulerClient.getCurrent(
+              deviceConfig.scrId
+            );
+            if (contentRes?.data) {
+              setCurrentContent(contentRes.data);
+            }
+          } catch (error) {
+            console.error("Error refreshing content:", error);
+          }
         }
       }
     } catch {
@@ -163,6 +224,18 @@ export default function RemoteConnect({ onNavigate }) {
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Corrected Time Display */}
+              <div className="flex items-center space-x-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                <Clock className="w-5 h-5 text-blue-600" />
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-blue-900 font-mono">
+                    {correctedTime
+                      ? correctedTime.toLocaleTimeString()
+                      : "Syncing..."}
+                  </span>
+                </div>
+              </div>
+
               {/* Connection Status */}
               <div className="flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg">
                 {getStatusIcon()}

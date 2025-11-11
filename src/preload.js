@@ -7,15 +7,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   connectToDB: () => ipcRenderer.invoke("connect-to-db"),
   saveDeviceConfig: (config) =>
     ipcRenderer.invoke("save-device-config", config), //need this
-  getDeviceConfig: () => ipcRenderer.invoke("get-device-config"),//need this
-  checkDeviceExists: () =>
-    ipcRenderer.invoke("check-device-exists"),
+  getDeviceConfig: () => ipcRenderer.invoke("get-device-config"), //need this
+  checkDeviceExists: () => ipcRenderer.invoke("check-device-exists"),
   getDeviceByMac: (macAddress) =>
-    ipcRenderer.invoke("get-device-by-mac", macAddress),// need this
+    ipcRenderer.invoke("get-device-by-mac", macAddress), // need this
   registerDevice: (deviceInfo) =>
     ipcRenderer.invoke("register-device", deviceInfo),
   updateDeviceStatus: (customId, isOnline) =>
     ipcRenderer.invoke("update-device-status", customId, isOnline),
+  getNtpTime: () => ipcRenderer.invoke("get-ntp-time"),
+  getCorrectedTime: () => ipcRenderer.invoke("get-corrected-time"),
 
   // Database Configuration
   testDatabaseConnection: (config) =>
@@ -31,7 +32,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   fetchContentItems: (customId) =>
     ipcRenderer.invoke("fetch-content-items", customId),
   getCurrentContent: (customId) =>
-    ipcRenderer.invoke("get-current-content", customId),//need this
+    ipcRenderer.invoke("get-current-content", customId), //need this
 
   // Enhanced Content Management
   addContentItem: (contentData) =>
@@ -57,8 +58,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Location and Screen Management
   getLocations: () => ipcRenderer.invoke("get-locations"),
   getScreenIds: () => ipcRenderer.invoke("get-screenids"),
-  getPlantCodes: () => ipcRenderer.invoke("get-plantcodes"),//need this
-
+  getPlantCodes: () => ipcRenderer.invoke("get-plantcodes"), //need this
 
   // Window Management
   openSettings: () => ipcRenderer.invoke("open-settings", "network"),
@@ -68,8 +68,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Content Scheduler
   startContentScheduler: (config) =>
-    ipcRenderer.invoke("start-content-scheduler", config),// need this
-  stopContentScheduler: () => ipcRenderer.invoke("stop-content-scheduler"),//need this
+    ipcRenderer.invoke("start-content-scheduler", config), // need this
+  stopContentScheduler: () => ipcRenderer.invoke("stop-content-scheduler"), //need this
   getSchedulerStatus: () => ipcRenderer.invoke("get-scheduler-status"),
   // updateRefreshInterval: (interval) =>
   //   ipcRenderer.invoke("update-refresh-interval", interval),//need this
