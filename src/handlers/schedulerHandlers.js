@@ -926,11 +926,11 @@ class SchedulerHandlers {
       console.log(`[${scrId}] 🪟 Starting window update to: ${displayUrl}`);
 
       if (this.windowHandlers) {
-        // Add timeout to prevent hanging
+        // Add timeout to prevent hanging (35 seconds to allow for page load)
         const updatePromise =
           this.windowHandlers.createDisplayWindow(displayUrl);
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Window update timeout")), 10000)
+          setTimeout(() => reject(new Error("Window update timeout")), 35000)
         );
 
         await Promise.race([updatePromise, timeoutPromise]);
